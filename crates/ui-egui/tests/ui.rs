@@ -35,7 +35,11 @@ fn harness(setup: impl FnOnce(&mut PdfCraftApp) + 'static) -> Harness<'static, P
 fn home_shows_welcome_and_tools() {
     let h = harness(|_| {});
     h.get_by_label_contains("Welcome to Readf");
-    assert!(h.query_all_by_label("Add comments").count() >= 2, "tool list + home card");
+    assert_eq!(h.query_all_by_label("Add comments").count(), 1, "only the existing tools panel remains");
+    assert!(h.query_by_label("Recommended tools").is_none());
+    h.get_by_label("Open a PDF to get started.");
+    h.get_by_label("or drop a PDF here");
+    h.get_by_label("Recent files");
     assert_eq!(h.query_all_by_label("Organize pages").count(), 0);
     h.get_by_label("Open file");
 }

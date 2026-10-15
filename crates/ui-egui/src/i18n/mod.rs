@@ -2087,10 +2087,7 @@ mod tests {
         let lt = Lang::from_code("lt").expect("lt registered");
         let literals = scan_ui_literals(true);
         assert!(literals.contains("Float panel"), "direct lookup literals are included");
-        assert!(
-            literals.contains("Readf works offline. No telemetry, no account, and no cloud processing unless you add a provider."),
-            "multiline literal arguments are included"
-        );
+        assert!(literals.contains("Open a PDF to get started."), "multiline literal arguments are included");
         let missing: Vec<_> = literals.iter().filter(|label| !has(lt, label)).collect();
         assert!(missing.is_empty(), "Untranslated Lithuanian UI labels: {missing:#?}");
     }

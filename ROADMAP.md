@@ -1,5 +1,6 @@
 # PdfCraft roadmap
 
+- **2026-10-15 (M3, simplified welcome):** Centered the Open file action and recent list, removed welcome tool cards and the privacy block, and kept folders behind a collapsed section. Document UI is unchanged.
 - **2026-10-15 (M3, Readf icon refresh):** Replaced the app icon with the contributor-approved new artwork, removed its exterior background, regenerated PNG/ICO/ICNS variants and attribution. Welcome remains logo-free.
 - **2026-10-15 (M3, Readf release baseline):** Selected upstream v0.8.0 (`9931329b`) after evaluating development main. Reapplied Readf branding and the simplified interface, restored engine translation lookup keys, and added the contributor-approved display name Dr Machines. Validation passed: 443 focused tests (one existing ignored probe), scoped Clippy, formatting, assets, layers, parity, native build and wasm check. Full workspace CI and release packaging remain pending.
 
