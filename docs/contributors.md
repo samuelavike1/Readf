@@ -1,11 +1,13 @@
-# Contributors in the About window
+> **Simplified local version:** The About dialog and compiled credits UI have been removed. Contributor records remain preserved below as upstream project history.
 
-**About ▸ Contributors** credits everyone who contributed to PdfCraft, and **About ▸ Models** credits
-the AI models named in `Co-Authored-By` trailers. This follows the shared craftrules standard
+# Contributor records
+
+Upstream uses **About ▸ Contributors** to credit people and **About ▸ Models** to credit
+AI models named in `Co-Authored-By` trailers. The upstream design follows the shared craftrules standard
 [`standards/contributors.md`](https://github.com/storytold/craftrules/blob/main/standards/contributors.md);
 this page is the local copy of the decision.
 
-## Decision
+## Upstream design (not enabled in this version)
 
 - Two files, both **compiled into the binary** by the UI crate's `build.rs` (nothing is read from
   disk or the network at run time; the web build has them too):
@@ -21,9 +23,10 @@ this page is the local copy of the decision.
   first or last commit date. The name toggle cycles **Username → Display name → Real name**; a
   missing name falls back to `@username`. Alphabetical sorting is case-insensitive and ignores the `@`.
 
-## In PdfCraft
+## In this version
 
-- The About window is the `Dialog::About` arm in `crates/ui-egui/src/dialogs.rs` (Help ▸ About, `help.about`).
+The About dialog, Help command, credits module and credits build script are removed.
+The source records and required license notices remain intact.
 
 ## Credit yourself
 

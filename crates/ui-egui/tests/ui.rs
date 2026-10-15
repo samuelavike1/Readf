@@ -34,8 +34,9 @@ fn harness(setup: impl FnOnce(&mut PdfCraftApp) + 'static) -> Harness<'static, P
 #[test]
 fn home_shows_welcome_and_tools() {
     let h = harness(|_| {});
-    h.get_by_label_contains("Welcome to PdfCraft");
-    assert!(h.query_all_by_label("Organize pages").count() >= 2, "tool list + home card");
+    h.get_by_label_contains("Welcome to Readf");
+    assert!(h.query_all_by_label("Add comments").count() >= 2, "tool list + home card");
+    assert_eq!(h.query_all_by_label("Organize pages").count(), 0);
     h.get_by_label("Open file");
 }
 
@@ -111,7 +112,7 @@ fn home_removes_one_recent_file_or_clears_them_all() {
     h.get_by_label("Clear Recent Files").click();
     h.run_steps(2);
     assert!(h.state().recent.is_empty(), "Clear empties the list");
-    h.get_by_label_contains("Files you open in PdfCraft appear here");
+    h.get_by_label_contains("Files you open in Readf appear here");
     assert!(h.query_by_label("Clear Recent Files").is_none(), "and goes away with nothing left to clear");
 }
 
@@ -192,35 +193,6 @@ fn read_mode_rail_buttons_open_their_panels() {
     h.get_by_label("Alpha section");
 }
 
-/// A document that asks to open in Full Screen mode (`/PageMode /FullScreen`) is asked about
-/// first, as in Acrobat: "Not now" leaves the window as it is, "Full Screen" enters it.
-#[test]
-fn a_document_asking_for_full_screen_is_asked_about_first() {
-    let deck = || String::from_utf8(FIXTURE.to_vec()).unwrap().replace("/Outlines 6 0 R", "/Outlines 6 0 R /PageMode /FullScreen").into_bytes();
-    let mut h = harness(move |app| app.open_bytes("deck.pdf", None, deck()).expect("opens"));
-    h.run_steps(3);
-    assert!(!h.state().full_screen, "nothing happens before the answer");
-    h.get_by_label("Open in Full Screen mode?");
-    h.get_by_label("Not now").click();
-    h.run_steps(3);
-    assert!(!h.state().full_screen);
-    assert!(h.query_by_label("Open in Full Screen mode?").is_none() && h.state().pending_full_screen.is_none());
-    // Asked again for the next such document; Full Screen enters it.
-    let again = String::from_utf8(FIXTURE.to_vec()).unwrap().replace("/Outlines 6 0 R", "/Outlines 6 0 R /PageMode /FullScreen").into_bytes();
-    h.state_mut().open_bytes("deck2.pdf", None, again).expect("opens");
-    h.run_steps(3);
-    h.get_by_label("Full Screen").click();
-    h.run_steps(3);
-    assert!(h.state().full_screen, "Full Screen enters it");
-    assert!(h.state().pending_full_screen.is_none());
-    // A plain document asks nothing.
-    h.key_press(egui::Key::Escape);
-    h.run_steps(2);
-    h.state_mut().open_bytes("plain.pdf", None, FIXTURE.to_vec()).expect("opens");
-    h.run_steps(3);
-    assert!(h.query_by_label("Open in Full Screen mode?").is_none() && !h.state().full_screen);
-}
-
 /// Switching to Read mode closes the open pane, and switching back reopens it.
 #[test]
 fn read_mode_closes_the_panes_and_leaving_it_brings_them_back() {
@@ -299,28 +271,6 @@ fn a_tab_with_an_arabic_file_name_keeps_its_logical_accessible_name() {
     h.get_by_label(long);
 }
 
-/// A middle click on a tab closes it, as in Acrobat and browsers (#1853); a tab with unsaved
-/// changes asks first, as its close button does.
-#[test]
-fn a_middle_click_closes_the_tab() {
-    let mut h = harness(|app| {
-        app.open_bytes("first.pdf", None, FIXTURE.to_vec()).unwrap();
-        app.open_bytes("second.pdf", None, FIXTURE.to_vec()).unwrap();
-    });
-    h.get_by_label("first.pdf").click_button(egui::PointerButton::Middle);
-    h.run_steps(3);
-    let app = h.state();
-    assert_eq!(app.views.len(), 1);
-    assert_eq!(app.session.get(app.views[0].id).unwrap().name, "second.pdf");
-    assert!(app.close_request.is_none(), "a clean document closes without asking");
-    h.state_mut().apply_edit(pdfcraft_engine::Edit::RotatePages { pages: vec![0], degrees: 90 });
-    h.run_steps(2);
-    h.get_by_label("second.pdf (edited)").click_button(egui::PointerButton::Middle);
-    h.run_steps(3);
-    assert_eq!(h.state().views.len(), 1, "unsaved changes ask first");
-    assert!(h.state().close_request.is_some());
-}
-
 #[test]
 fn overflowing_tabs_can_be_reached_by_scrolling() {
     let mut h = harness(|app| {
@@ -381,8 +331,8 @@ fn tabs_shrink_to_fit_then_arrows_step_through_them_and_open_stays_in_sight() {
         }
     });
     let open = h.get_by_label("Open").rect();
-    let discord = h.get_by_label("Discord").rect();
-    assert!(open.right() <= discord.left(), "Open {open:?} must not run under Discord {discord:?}");
+    let help = h.get_by_label("Keyboard shortcuts").rect();
+    assert!(open.right() <= help.left(), "Open {open:?} must not run under Help {help:?}");
     let mut previous_right = f32::MIN;
     for i in 0..5 {
         let tab = h.get_by_label(&name(i)).rect();
@@ -406,15 +356,15 @@ fn tabs_shrink_to_fit_then_arrows_step_through_them_and_open_stays_in_sight() {
     assert_eq!(enabled(&h, "Scroll tabs right"), Some(true), "and then there is more to the right");
     let open = h.get_by_label("Open").rect();
     let right = h.get_by_label("Scroll tabs right").rect();
-    assert!(right.right() <= open.left() + 0.5 && open.right() <= h.get_by_label("Discord").rect().left());
-    // Twenty: Open stays in sight left of Discord.
+    assert!(right.right() <= open.left() + 0.5 && open.right() <= h.get_by_label("Keyboard shortcuts").rect().left());
+    // Twenty: Open stays in sight left of Help.
     for i in 0..13 {
         h.state_mut().open_bytes(&format!("more-{i:02}.pdf"), None, FIXTURE.to_vec()).unwrap();
     }
     h.run_steps(4);
     let open = h.get_by_label("Open").rect();
-    let discord = h.get_by_label("Discord").rect();
-    assert!(open.left() > 0.0 && open.right() <= discord.left(), "Open {open:?} stays in sight left of Discord {discord:?}");
+    let help = h.get_by_label("Keyboard shortcuts").rect();
+    assert!(open.left() > 0.0 && open.right() <= help.left(), "Open {open:?} stays in sight left of Help {help:?}");
 }
 
 /// macOS (#789): with the integrated title bar, the strip is the 28 pt band AppKit centres the
@@ -427,7 +377,7 @@ fn the_integrated_title_bar_is_the_traffic_light_band() {
         app.open_bytes("band.pdf", None, FIXTURE.to_vec()).unwrap();
     });
     let band = 28.0;
-    for label in ["Home", "band.pdf", "Open", "Discord", "Keyboard shortcuts"] {
+    for label in ["Home", "band.pdf", "Open", "Keyboard shortcuts"] {
         let r = h.get_by_label(label).rect();
         assert!(r.top() >= 0.0 && r.bottom() <= band, "{label}: {r:?} inside the {band} pt title bar");
         assert!(r.height() >= 24.0, "{label}: {r:?} stays clickable");
@@ -744,92 +694,6 @@ fn dropping_a_pdf_on_the_window_opens_it() {
 }
 
 #[test]
-fn a_file_dropped_on_the_page_grid_is_read_from_disk_and_inserted() {
-    // The grid's drop reads a file from its path when its turn to be inserted comes, and inserts it
-    // at the end when the pointer doesn't say where it went (about a second).
-    let dir = std::env::temp_dir().join(format!("pdfcraft-grid-drop-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("dropped.pdf");
-    let setup = PdfCraftApp::new();
-    let pdf = setup.session.create_from_text("dropped", "from disk").unwrap();
-    std::fs::write(&path, pdf.as_slice()).unwrap();
-    let mut h = Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_eframe(|_cc| {
-        let mut app = PdfCraftApp::new();
-        app.set_option("language", "en").unwrap();
-        let grid = app.session.create_from_text("grid", "one page").unwrap();
-        app.open_bytes("grid.pdf", None, grid.to_vec()).unwrap();
-        app.views[0].organize = true;
-        app
-    });
-    h.run_steps(3);
-    let pages = |h: &egui_kittest::Harness<'_, PdfCraftApp>| {
-        let app = h.state();
-        app.session.get(app.views[0].id).unwrap().info.pages.len()
-    };
-    assert_eq!(pages(&h), 1);
-    let file: egui::DroppedFileHandle = std::sync::Arc::new(Dropped { path: path.clone(), bytes: Vec::new() });
-    h.input_mut().dropped_files.push(file);
-    for _ in 0..300 {
-        h.run_steps(1);
-        if pages(&h) == 2 {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(10));
-    }
-    assert_eq!(pages(&h), 2, "the dropped file's page is inserted at the end of the grid");
-    let _ = std::fs::remove_dir_all(&dir);
-}
-
-#[test]
-fn pdfs_dropped_on_the_combine_tab_join_its_list() {
-    let mut h = Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_eframe(|_cc| {
-        let mut app = PdfCraftApp::new();
-        app.set_option("language", "en").unwrap();
-        app
-    });
-    h.run_steps(3);
-    h.state_mut().set_option("combine-view", "list").unwrap();
-    h.state_mut().execute("page.combine");
-    h.run_steps(2);
-    // An absolute path is read from disk, with its modified time.
-    let path = std::env::temp_dir().join(format!("pdfcraft-combine-drop-{}.pdf", std::process::id()));
-    std::fs::write(&path, FIXTURE).unwrap();
-    let on_disk: egui::DroppedFileHandle = std::sync::Arc::new(Dropped { path: path.clone(), bytes: Vec::new() });
-    let in_memory: egui::DroppedFileHandle = std::sync::Arc::new(Dropped { path: "second.pdf".into(), bytes: FIXTURE.to_vec() });
-    h.input_mut().dropped_files.extend([on_disk, in_memory]);
-    h.run_steps(3);
-    std::fs::remove_file(&path).ok();
-    let app = h.state();
-    assert!(app.views.is_empty(), "nothing opens");
-    assert_eq!(app.combine_draft.len(), 2);
-    assert!(app.combine_draft[0].modified.is_some() && app.combine_draft[1].modified.is_none());
-    h.get_by_label("just now");
-}
-
-#[test]
-fn a_folder_dropped_on_the_combine_tab_adds_its_pdfs() {
-    let dir = std::env::temp_dir().join(format!("pdfcraft-combine-drop-dir-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(dir.join("inner")).unwrap();
-    std::fs::write(dir.join("one.pdf"), FIXTURE).unwrap();
-    std::fs::write(dir.join("inner").join("two.pdf"), FIXTURE).unwrap();
-    let mut h = Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_eframe(|_cc| {
-        let mut app = PdfCraftApp::new();
-        app.set_option("language", "en").unwrap();
-        app
-    });
-    h.run_steps(3);
-    h.state_mut().execute("page.combine");
-    h.run_steps(2);
-    let folder: egui::DroppedFileHandle = std::sync::Arc::new(Dropped { path: dir.clone(), bytes: Vec::new() });
-    h.input_mut().dropped_files.push(folder);
-    h.run_steps(3);
-    let _ = std::fs::remove_dir_all(&dir);
-    let names: Vec<_> = h.state().combine_draft.iter().map(|f| f.name.clone()).collect();
-    assert_eq!(names, ["two.pdf", "one.pdf"], "subfolders included, in path order");
-}
-
-#[test]
 fn files_and_quit_from_the_operating_system() {
     // #73: macOS hands Finder double-clicks, Open With and Dock drops over as Apple events.
     use pdfcraft_ui_egui::OsEvent;
@@ -1115,7 +979,7 @@ fn closing_the_last_active_tab_selects_the_previous_one_then_home() {
         assert!(app.session.get(ids[removed]).is_none());
     }
     assert_eq!(h.state().active, None);
-    h.get_by_label_contains("Welcome to PdfCraft");
+    h.get_by_label_contains("Welcome to Readf");
 }
 
 #[test]
@@ -1218,26 +1082,6 @@ fn document_tab_identity_survives_dirty_labels_and_removing_an_earlier_document(
     assert!(h.state().session.get(h.state().views[0].id).unwrap().dirty);
 }
 
-#[test]
-fn combine_tab_uses_tab_interaction_without_changing_close_or_document_state() {
-    use egui::accesskit::Role;
-    let mut h = three_tab_harness();
-    let document_ids: Vec<_> = h.state().views.iter().map(|v| v.id).collect();
-    h.state_mut().execute("page.combine");
-    h.run_steps(3);
-    assert_eq!(h.get_by_role_and_label(Role::Tab, "Combine files").accesskit_node().is_selected(), Some(true));
-    h.get_by_role_and_label(Role::Tab, "first.pdf").click();
-    h.run_steps(3);
-    h.get_by_role_and_label(Role::Tab, "Combine files").focus();
-    h.run_steps(2);
-    h.key_press(egui::Key::Enter);
-    h.run_steps(3);
-    assert_eq!(h.get_by_role_and_label(Role::Tab, "Combine files").accesskit_node().is_selected(), Some(true));
-    close_named_tab(&mut h, "Combine files");
-    assert!(h.query_by_role_and_label(Role::Tab, "Combine files").is_none());
-    assert_eq!(h.state().views.iter().map(|v| v.id).collect::<Vec<_>>(), document_ids);
-}
-
 /// Presses the named tab, drags it to `to` in a few steps and, unless `release` is false, lets go.
 fn drag_named_tab(h: &mut Harness<'static, PdfCraftApp>, name: &str, to: egui::Pos2, release: bool) {
     let from = h.get_by_role_and_label(egui::accesskit::Role::Tab, name).rect().center();
@@ -1285,42 +1129,6 @@ fn dragging_a_tab_moves_it_and_keeps_the_same_document_active() {
     }
 }
 
-/// Regression (#2225): the drop line in front of the first tab sat half a gap outside the
-/// scroll area's clip rect and was never visible.
-#[test]
-fn the_drop_line_shows_in_front_of_the_first_tab() {
-    use egui::accesskit::Role;
-    let mut h = three_tab_harness();
-    let first = h.get_by_role_and_label(Role::Tab, "first.pdf").rect();
-    // Pixels in the strip just left of the first tab that are strongly blue (the accent line).
-    let blue_left_of = |h: &mut Harness<'static, PdfCraftApp>, rect: egui::Rect| {
-        let image = h.render().unwrap();
-        let scale = image.width() as f32 / h.ctx.content_rect().width();
-        let x0 = ((rect.left() - 3.0) * scale).max(0.0) as u32;
-        let x1 = ((rect.left() + 1.0) * scale).max(0.0) as u32;
-        let (y0, y1) = ((rect.top() * scale) as u32, (rect.bottom() * scale) as u32);
-        let mut n = 0;
-        for y in y0..y1.min(image.height()) {
-            for x in x0..x1.min(image.width()) {
-                let p = image.get_pixel(x, y).0;
-                if p[2] > 150 && p[0] < 90 && p[1] < 140 {
-                    n += 1;
-                }
-            }
-        }
-        n
-    };
-    let before = blue_left_of(&mut h, first);
-    // last.pdf to the left of the first tab, released not yet.
-    let to = first.left_center() - egui::vec2(10.0, 0.0);
-    drag_named_tab(&mut h, "last.pdf", to, false);
-    let during = blue_left_of(&mut h, first);
-    assert!(during > before + 10, "no drop line left of the first tab ({before} -> {during})");
-    if let Ok(dir) = std::env::var("PDFCRAFT_TAB_SHOTS") {
-        h.render().unwrap().save(format!("{dir}/dragging-to-front.png")).unwrap();
-    }
-}
-
 #[test]
 fn a_tab_dropped_where_it_was_stays_and_a_click_still_selects_it() {
     let mut h = three_tab_harness();
@@ -1335,36 +1143,26 @@ fn a_tab_dropped_where_it_was_stays_and_a_click_still_selects_it() {
 }
 
 #[test]
-fn the_combine_tab_does_not_move_and_documents_stay_in_order() {
+fn the_removed_combine_command_keeps_document_tabs_in_order() {
     let mut h = three_tab_harness();
     let ids: Vec<_> = h.state().views.iter().map(|view| view.id).collect();
-    h.state_mut().execute("page.combine");
+    assert!(!h.state_mut().execute("page.combine"));
     h.run_steps(3);
-    let first = h.get_by_role_and_label(egui::accesskit::Role::Tab, "first.pdf").rect();
-    drag_named_tab(&mut h, "Combine files", first.left_center() - egui::vec2(10.0, 0.0), true);
+    assert!(!h.state().combine_showing());
     assert_eq!(h.state().views.iter().map(|view| view.id).collect::<Vec<_>>(), ids);
 }
 
-/// The Edit tab turns on Edit text & images at once, as Acrobat does, so every paragraph and image
-/// is boxed and editable with one click; another tab puts the tool down again.
 #[test]
-fn the_edit_tab_turns_on_edit_text_and_images() {
-    use pdfcraft_ui_egui::{Mode, QuickTool};
-    let mut h = harness(|app| app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).expect("fixture opens"));
-    assert_eq!(h.state().quick_tool, QuickTool::Select);
-    h.get_by_label("Edit").click();
+fn removed_tools_cannot_be_opened_or_run_from_the_interface() {
+    let mut h = three_tab_harness();
+    let document_ids: Vec<_> = h.state().views.iter().map(|v| v.id).collect();
+    for tool in ["create", "combine", "organize", "measure", "ai"] {
+        assert!(h.state_mut().set_option("tool", tool).is_err());
+    }
+    for command in ["create.blank", "page.combine", "page.organize", "page.delete", "measure.distance"] {
+        assert!(!h.state_mut().execute(command));
+    }
     h.run_steps(3);
-    assert_eq!(h.state().mode, Mode::Edit);
-    assert_eq!(h.state().quick_tool, QuickTool::EditText);
-    h.get_by_label("All tools").click();
-    h.run_steps(3);
-    assert_eq!(h.state().mode, Mode::AllTools);
-    assert_eq!(h.state().quick_tool, QuickTool::Select);
-    // Another tool picked inside Edit is not taken away by leaving it.
-    h.get_by_label("Edit").click();
-    h.run_steps(3);
-    h.state_mut().quick_tool = QuickTool::Hand;
-    h.get_by_label("Convert").click();
-    h.run_steps(3);
-    assert_eq!(h.state().quick_tool, QuickTool::Hand);
+    assert!(h.query_by_label("Combine files").is_none());
+    assert_eq!(h.state().views.iter().map(|v| v.id).collect::<Vec<_>>(), document_ids);
 }

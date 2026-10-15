@@ -344,7 +344,7 @@ fn group_drags_cancel_on_focus_loss_tab_switch_home_and_modal_dialogs() {
                 h.state_mut().open_bytes("other.pdf", None, fixture(false)).unwrap();
             }
             2 => h.state_mut().active = None,
-            3 => h.state_mut().dialog = Some(pdfcraft_ui_egui::Dialog::About),
+            3 => h.state_mut().dialog = Some(pdfcraft_ui_egui::Dialog::Shortcuts),
             _ => h.state_mut().request_document_url("https://example.invalid/", pdfcraft_ui_egui::LinkOrigin::Link),
         }
         h.run_steps(2);

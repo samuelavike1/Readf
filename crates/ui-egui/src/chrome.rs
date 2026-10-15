@@ -66,11 +66,8 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     app.active = None;
                     app.combine_tab.focused = false;
                 }
-                // Keep the two icon buttons, Discord's text/padding and three gaps outside the scrolling tabs.
-                let controls_width = ui.fonts_mut(|f| f.layout_no_wrap("Discord".into(), theme::medium(13.0), t.text).size().x)
-                    + 2.0 * button
-                    + 50.0
-                    + window_controls::width(&controls.right);
+                // Reserve the theme and keyboard-shortcut buttons and their gaps.
+                let controls_width = 2.0 * button + 12.0 + window_controls::width(&controls.right);
                 // Open stays in sight after the tabs: its icon, text and padding, and the gaps around it.
                 let open_width = ui.fonts_mut(|f| f.layout_no_wrap(tl!("Open").into(), theme::medium(13.0), t.text).size().x) + 38.0 + 12.0;
                 let mut tabs_width = (ui.available_width() - controls_width - open_width).max(0.0);
@@ -170,11 +167,6 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                                 if response.clicked() {
                                     app.active = Some(i);
                                 }
-                                // A middle click closes the tab, as in Acrobat and browsers (#1853);
-                                // unsaved changes ask first, as the close button does.
-                                if response.middle_clicked() {
-                                    close = Some(i);
-                                }
                             }
                             // Dragging a tab moves it (#1537): a line marks the gap it will land
                             // in, and releasing the button drops it there.
@@ -191,10 +183,6 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                                     ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
                                     if let Some(marker) = drop_marker(&slots, from, to, ui.spacing().item_spacing.x) {
                                         let span = slots.first().map_or(ui.max_rect().y_range(), |(_, r)| r.y_range());
-                                        // In front of the first tab the gap lies outside the scroll area's
-                                        // clip rect (#2225): keep the whole line inside it.
-                                        let clip = ui.clip_rect();
-                                        let marker = marker.clamp(clip.left() + 1.0, (clip.right() - 1.0).max(clip.left() + 1.0));
                                         ui.painter().vline(marker, span.shrink(4.0), Stroke::new(2.0, t.accent));
                                     }
                                 }
@@ -231,7 +219,7 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                                 if response.clicked() {
                                     app.open_combine_tab();
                                 }
-                                if close.is_some() || response.middle_clicked() {
+                                if close.is_some() {
                                     app.close_combine_tab();
                                 }
                             }
@@ -297,10 +285,6 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     egui::Popup::context_menu(&response).id(response.id.with("theme_menu")).show(|ui| appearance_menu(app, ui));
                     if icons::button(ui, "circle-help", button, false, tl!("Keyboard shortcuts")).clicked() {
                         app.dialog = Some(Dialog::Shortcuts);
-                    }
-                    // One click to the community, from anywhere in the app.
-                    if widgets::ghost_button_sized(ui, "messages-square", "Discord", tab_h).on_hover_text(pdfcraft_engine::links::DISCORD).clicked() {
-                        app.execute("help.discord");
                     }
                 });
             });
@@ -539,7 +523,6 @@ fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         ui.set_min_width(230.0);
         ui.menu_button(tl!("File"), |ui| crate::commands::registry_menu(app, ui, "File"));
         ui.menu_button(tl!("Edit"), |ui| crate::commands::registry_menu(app, ui, "Edit"));
-        ui.menu_button(tl!("Pages"), |ui| crate::commands::registry_menu(app, ui, "Pages"));
         ui.menu_button(tl!("View"), |ui| {
             if let Some(i) = app.active {
                 let v = &mut app.views[i];
@@ -704,32 +687,9 @@ pub fn right_rail(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 if icons::button(ui, "chevron-up", 30.0, false, tl!("Previous page")).clicked() {
                     view.step_page(false);
                 }
-                // History is distinct from stepping to the adjacent page, and belongs to this tab.
-                for (forward, icon, label, shortcut, enabled) in [
-                    (true, "chevron-right", tl!("Next view"), crate::commands::NEXT_VIEW, !view.forward.is_empty()),
-                    (false, "chevron-left", tl!("Previous view"), crate::commands::PREV_VIEW, !view.back.is_empty()),
-                ] {
-                    let tip = format!("{label} ({})", crate::commands::shortcut_label(ui.ctx(), shortcut));
-                    if ui.add_enabled_ui(enabled, |ui| icons::button(ui, icon, 30.0, false, &tip)).inner.clicked() {
-                        view.view_history(forward);
-                    }
-                }
                 ui.label(egui::RichText::new(page_count.to_string()).font(theme::regular(11.0)).color(t.text_muted));
-                let page_input_id = view.page_input_id();
-                // Consume replacement selection once, including when the editor has lost focus.
-                let reselect = std::mem::take(&mut view.page_input_reselect);
-                // Navigation updates the idle display, never the text being edited.
-                if !ui.memory(|m| m.has_focus(page_input_id)) {
-                    view.page_input = view.current_page_label(labels.get(view.current).map(String::as_str));
-                } else if reselect {
-                    // The replacement changed the label while egui retained this editor's cursor.
-                    let mut state = egui::TextEdit::load_state(ui.ctx(), page_input_id).unwrap_or_default();
-                    let end = egui::text::CCursor::new(view.page_input.chars().count());
-                    state.cursor.set_char_range(Some(egui::text::CCursorRange::two(egui::text::CCursor::new(0), end)));
-                    state.store(ui.ctx(), page_input_id);
-                }
                 let edit = egui::TextEdit::singleline(&mut view.page_input)
-                    .id(page_input_id)
+                    .id(egui::Id::new("page-input"))
                     .desired_width(34.0)
                     .horizontal_align(Align::Center)
                     .font(theme::medium(12.0))
@@ -741,13 +701,12 @@ pub fn right_rail(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     .show(ui, |ui| ui.add(edit))
                     .inner
                     .on_hover_text(tl!("Current page — type a page number or label (such as iv) and press Enter"));
-                if r.lost_focus() {
-                    if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                        // A page label first (logical page numbers, as Acrobat), then a number.
-                        let typed = view.page_input.clone();
-                        view.go_to_typed(&typed, &labels);
+                if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    // A page label first (logical page numbers, as Acrobat), then a number.
+                    let typed = view.page_input.clone();
+                    if !view.go_to_typed(&typed, &labels) {
+                        view.page_input = (view.current + 1).to_string();
                     }
-                    view.page_input = view.current_page_label(labels.get(view.current).map(String::as_str));
                 }
             });
             if let Some(id) = page_display {

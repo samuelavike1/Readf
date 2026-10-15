@@ -192,12 +192,6 @@ pub(crate) fn bar(ctx: &egui::Context, view: &mut DocView, area: Rect, t: &Token
                             if icon(ui, "rotate-cw", tl!("Rotate clockwise")) {
                                 view.pending_action = Some(ViewAction::CameraRotate { clockwise: true });
                             }
-                            if crate::widgets::pill_button(ui, tl!("Crop pages"), false).clicked() {
-                                view.pending_action = Some(ViewAction::CameraNext("page.crop"));
-                            }
-                            if crate::widgets::pill_button(ui, tl!("Organize pages"), false).clicked() {
-                                view.pending_action = Some(ViewAction::CameraNext("page.organize"));
-                            }
                             if crate::widgets::pill_button(ui, tl!("Done"), true).clicked() {
                                 view.pending_action = Some(ViewAction::CancelCamera);
                             }

@@ -24,11 +24,6 @@ pub struct ToolItem {
     pub icon: &'static str,
     pub command: &'static str,
     pub availability: Availability,
-    /// Further commands of the same tool, shown as a drop-down beside the entry: Acrobat's
-    /// Watermark control offers Add, Update and Remove. The first is `command` itself. A UI
-    /// enables each one by its own command's needs, so Update and Remove stay greyed out until
-    /// the document has that kind of mark. Empty for a plain entry.
-    pub actions: &'static [&'static str],
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -50,19 +45,10 @@ pub struct ToolGroup {
 }
 
 const fn item(label: &'static str, icon: &'static str, command: &'static str, availability: Availability) -> ToolItem {
-    ToolItem { label, icon, command, availability, actions: &[] }
+    ToolItem { label, icon, command, availability }
 }
 
-/// An entry that opens a menu of `actions` (the first one is its `command`).
-const fn menu_item(label: &'static str, icon: &'static str, actions: &'static [&'static str]) -> ToolItem {
-    let command = match actions {
-        [first, ..] => *first,
-        [] => "",
-    };
-    ToolItem { label, icon, command, availability: Ready, actions }
-}
-
-use Availability::{Planned, Provider, Ready};
+use Availability::{Planned, Ready};
 
 const RED: [u8; 3] = [0xE0, 0x3E, 0x3E];
 const PURPLE: [u8; 3] = [0x8E, 0x4E, 0xE6];
@@ -125,92 +111,20 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
         hue: PINK,
         badge: None,
         availability: Planned("M7"),
-        sections: &[
-            ToolSection {
-                title: "Modify page",
-                items: &[
-                    item("Edit text & images", "text-cursor-input", "edit.edit_text", Ready),
-                    item("Rotate pages", "rotate-cw", "page.rotate", Ready),
-                    item("Insert pages", "file-plus-2", "page.insert", Ready),
-                    item("Delete pages", "trash-2", "page.delete", Ready),
-                    item("Extract pages", "file-output", "page.extract", Ready),
-                    item("Organize pages", "layout-grid", "page.organize", Ready),
-                ],
-            },
-            ToolSection {
-                title: "Add content",
-                items: &[
-                    item("Text", "type", "edit.text", Ready),
-                    item("Image", "image-plus", "edit.image", Ready),
-                    menu_item("Header and footer", "heading", &["edit.header_footer", "edit.header_footer.update", "edit.header_footer.remove"]),
-                    menu_item("Watermark", "stamp", &["edit.watermark", "edit.watermark.update", "edit.watermark.remove"]),
-                    item("Link", "link-2", "edit.link", Ready),
-                    item("Bates numbering", "hash", "edit.bates", Ready),
-                    menu_item("Background", "palette", &["edit.background", "edit.background.update", "edit.background.remove"]),
-                    item("Attach file", "paperclip", "edit.attach", Planned("M12")),
-                ],
-            },
-        ],
-    },
-    ToolGroup {
-        id: "create",
-        label: "Create a PDF",
-        icon: "file-plus-2",
-        hue: RED,
-        badge: None,
-        availability: Ready,
         sections: &[ToolSection {
-            title: "Create from",
+            title: "Add content",
             items: &[
-                item("Single file", "file-input", "create.file", Ready),
-                item("Multiple files", "files", "create.multiple", Ready),
-                item("Separate PDFs", "files", "create.multiple_separate", Ready),
-                item("Images", "image", "create.images", Ready),
-                item("Clipboard", "copy-plus", "create.clipboard", Ready),
-                item("Blank page", "file-plus-2", "create.blank", Ready),
+                item("Edit text & images", "text-cursor-input", "edit.edit_text", Ready),
+                item("Text", "type", "edit.text", Ready),
+                item("Image", "image-plus", "edit.image", Ready),
+                item("Header and footer", "heading", "edit.header_footer", Ready),
+                item("Watermark", "stamp", "edit.watermark", Ready),
+                item("Link", "link-2", "edit.link", Ready),
+                item("Bates numbering", "hash", "edit.bates", Ready),
+                item("Background", "palette", "edit.background", Ready),
+                item("Attach file", "paperclip", "edit.attach", Planned("M12")),
             ],
         }],
-    },
-    ToolGroup {
-        id: "combine",
-        label: "Combine files",
-        icon: "files",
-        hue: BLUE,
-        badge: None,
-        availability: Ready,
-        sections: &[ToolSection { title: "Combine", items: &[item("Add files to combine", "files", "page.combine", Ready)] }],
-    },
-    ToolGroup {
-        id: "organize",
-        label: "Organize pages",
-        icon: "layout-grid",
-        hue: GREEN,
-        badge: None,
-        availability: Ready,
-        sections: &[
-            ToolSection {
-                title: "Page options",
-                items: &[
-                    item("Page grid", "layout-grid", "page.organize", Ready),
-                    item("Rotate", "rotate-cw", "page.rotate", Ready),
-                    item("Delete", "trash-2", "page.delete", Ready),
-                    item("Extract", "file-output", "page.extract", Ready),
-                    item("Insert", "file-plus-2", "page.insert", Ready),
-                    item("Replace", "replace", "page.replace", Ready),
-                    item("Split", "scissors", "page.split", Ready),
-                ],
-            },
-            ToolSection {
-                title: "More",
-                items: &[
-                    item("Set page boxes", "square-dashed-mouse-pointer", "page.boxes", Ready),
-                    item("Crop pages", "crop", "page.crop", Ready),
-                    item("Duplicate pages", "copy-plus", "page.duplicate", Ready),
-                    item("Page labels", "tag", "page.number", Ready),
-                    item("Page transitions", "presentation", "page.transitions", Planned("M4")),
-                ],
-            },
-        ],
     },
     ToolGroup {
         id: "comment",
@@ -407,30 +321,8 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
                 item("Output preview", "layers", "prepress.output_preview", Planned("M11")),
                 item("Preflight", "file-check", "preflight.run", Planned("M11")),
                 item("Convert colors", "palette", "prepress.convert_colors", Planned("M11")),
-                item("Set page boxes", "square-dashed-mouse-pointer", "page.boxes", Ready),
                 item("Add printer marks", "ruler", "prepress.marks", Planned("M11")),
                 item("Fix hairlines", "minus", "prepress.hairlines", Planned("M11")),
-            ],
-        }],
-    },
-    ToolGroup {
-        id: "measure",
-        label: "Measure objects",
-        icon: "ruler",
-        hue: PINK,
-        badge: None,
-        availability: Ready,
-        sections: &[ToolSection {
-            title: "Measure",
-            items: &[
-                item("Distance", "ruler", "measure.distance", Ready),
-                item("Perimeter", "ruler", "measure.perimeter", Ready),
-                item("Area", "ruler", "measure.area", Ready),
-                item("Drawing scale", "ruler", "measure.scale", Ready),
-                item("Measurement information", "ruler", "measure.info", Ready),
-                item("Snapping", "ruler", "measure.snap", Ready),
-                item("Export measurements", "file-output", "measure.export", Ready),
-                item("Geospatial location", "compass", "measure.geo", Planned("M12")),
             ],
         }],
     },
@@ -472,10 +364,8 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
             title: "Accessibility",
             items: &[
                 item("Automatically tag PDF", "tag", "a11y.autotag", Ready),
-                item("Tag form fields", "tag", "a11y.autotag_fields", Ready),
                 item("Change reading options", "book-open", "a11y.reading_options", Ready),
                 item("Check for accessibility", "accessibility", "a11y.check", Ready),
-                item("Find untagged content", "search", "a11y.find_untagged", Ready),
                 item("Open accessibility report", "file-text", "a11y.report", Ready),
                 item("Add alternate text", "image", "a11y.alt_text", Ready),
                 item("Tags panel", "tag", "a11y.tags", Ready),
@@ -525,22 +415,6 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
             ],
         }],
     },
-    ToolGroup {
-        id: "ai",
-        label: "AI assistant",
-        icon: "sparkles",
-        hue: PINK,
-        badge: Some("Optional"),
-        availability: Provider,
-        sections: &[ToolSection {
-            title: "Bring your own model (off by default)",
-            items: &[
-                item("Summarize", "sparkles", "ai.summary", Provider),
-                item("Ask about this document", "message-circle-reply", "ai.ask", Provider),
-                item("Translate", "languages", "ai.translate", Provider),
-            ],
-        }],
-    },
 ];
 
 pub fn group(id: &str) -> Option<&'static ToolGroup> {
@@ -569,40 +443,6 @@ mod tests {
                     assert!(i.command.contains('.'), "{} lacks a namespace", i.command);
                 }
             }
-        }
-    }
-
-    #[test]
-    fn menu_entries_list_registered_commands_starting_with_their_own() {
-        let mut menus = 0;
-        for g in TOOL_GROUPS {
-            for s in g.sections {
-                for i in s.items {
-                    if i.actions.is_empty() {
-                        continue;
-                    }
-                    menus += 1;
-                    assert_eq!(i.actions[0], i.command, "{}: the first action is the entry's command", i.label);
-                    for id in i.actions {
-                        assert!(crate::commands::command(id).is_some(), "{id} is not a registered command");
-                    }
-                }
-            }
-        }
-        // Watermark, Header and footer, Background: Add / Update / Remove each (Acrobat's menu).
-        assert!(menus >= 3);
-    }
-
-    #[test]
-    fn every_update_and_remove_command_is_reachable_from_a_tool_entry() {
-        let reachable: HashSet<&str> =
-            TOOL_GROUPS.iter().flat_map(|g| g.sections.iter().flat_map(|s| s.items.iter())).flat_map(|i| i.actions.iter().copied()).collect();
-        for id in crate::commands::COMMANDS
-            .iter()
-            .map(|c| c.id)
-            .filter(|id| id.starts_with("edit.") && (id.ends_with(".update") || id.ends_with(".remove")))
-        {
-            assert!(reachable.contains(id), "{id} is in no tool menu");
         }
     }
 }
