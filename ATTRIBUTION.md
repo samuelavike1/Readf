@@ -269,10 +269,10 @@ Every asset PdfCraft includes, bundles or uses to build its published material, 
 | `crates/sign/tests/data/x509-rsa-sha1.pdf` | One-page PDF with a legacy adbe.x509.rsa_sha1 signature by the RSA test key | PdfCraft contributors | MIT OR Apache-2.0 | Contributor-original: hand-written PDF objects; signature made with `openssl dgst -sha1 -sign` over its byte ranges (see crates/sign/tests/data/README.md) | Signature validation tests (crates/sign/tests/pdf.rs): the legacy adbe.x509.rsa_sha1 format |
 | `assets/icons/monitor.svg` | Lucide icon "monitor" | Lucide Contributors (portions Cole Bemis, Feather) | ISC | https://github.com/lucide-icons/lucide (npm lucide-static 1.49.0, icons/monitor.svg) | UI icon, embedded via crates/ui-egui/src/icon_data.rs |
 | `crates/ui-egui/src/i18n/sl.tsv` | Slovene interface translation catalog | PdfCraft contributors | MIT OR Apache-2.0 | Contributor-original: clean-room translations of PdfCraft's English UI labels, no proprietary localisation resources | Slovene UI strings, compiled in by crates/ui-egui/src/i18n/mod.rs |
-| `assets/app-icon/readf.png` | Readf logo (png) | Fayez | MIT OR Apache-2.0 | Contributor-original/generated artwork supplied by Fayez, 2026-10-14; see assets/app-icon/README-readf.md | Readf application branding and platform icon |
-| `assets/app-icon/readf.ico` | Readf logo (ico) | Fayez | MIT OR Apache-2.0 | Contributor-original/generated artwork supplied by Fayez, 2026-10-14; see assets/app-icon/README-readf.md | Readf application branding and platform icon |
-| `assets/app-icon/readf.icns` | Readf logo (icns) | Fayez | MIT OR Apache-2.0 | Contributor-original/generated artwork supplied by Fayez, 2026-10-14; see assets/app-icon/README-readf.md | Readf application branding and platform icon |
-| `assets/app-icon/readf-256.png` | Readf app icon, 256 px | Fayez | MIT OR Apache-2.0 | Derived from contributor-original assets/app-icon/readf.png, supplied 2026-10-14 | Linux and FreeBSD desktop icon |
+| `assets/app-icon/readf.png` | Readf logo (png) | Fayez | MIT OR Apache-2.0 | Contributor-original/generated artwork supplied by Fayez, 2026-10-15; see assets/app-icon/README-readf.md | Readf application branding and platform icon |
+| `assets/app-icon/readf.ico` | Readf logo (ico) | Fayez | MIT OR Apache-2.0 | Contributor-original/generated artwork supplied by Fayez, 2026-10-15; see assets/app-icon/README-readf.md | Readf application branding and platform icon |
+| `assets/app-icon/readf.icns` | Readf logo (icns) | Fayez | MIT OR Apache-2.0 | Contributor-original/generated artwork supplied by Fayez, 2026-10-15; see assets/app-icon/README-readf.md | Readf application branding and platform icon |
+| `assets/app-icon/readf-256.png` | Readf app icon, 256 px | Fayez | MIT OR Apache-2.0 | Derived from contributor-original assets/app-icon/readf.png, supplied 2026-10-15 | Linux and FreeBSD desktop icon |
 
 ## Compiled in through dependencies (6)
 
