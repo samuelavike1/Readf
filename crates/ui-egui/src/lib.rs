@@ -860,8 +860,8 @@ impl PdfCraftApp {
             views: Vec::new(),
             closed_tabs: Vec::new(),
             active: None,
-            mode: Mode::AllTools,
-            default_mode: Mode::AllTools,
+            mode: Mode::Read,
+            default_mode: Mode::Read,
             view_defaults: Default::default(),
             units: Default::default(),
             date_format_draft: None,
@@ -1275,18 +1275,9 @@ impl PdfCraftApp {
         self.session.set_reading_colors(id, self.reading_colors);
         let doc = self.session.get(id).ok_or("the document could not be opened")?;
         let pages = doc.info.pages.len();
-        // Acrobat opens straight to the Comments panel when a document has comments.
-        // Read mode opens with the panes closed; the rail still opens them (#932). A right panel
-        // the user closed stays closed (#1590).
-        let opening_mode = self.mode_override.unwrap_or(self.default_mode);
-        if activate && self.right.is_none() && !self.right_panel_closed && opening_mode != Mode::Read {
-            self.right = if !doc.info.annotations.is_empty() {
-                Some(RightPanel::Comments)
-            } else if !doc.info.outline.is_empty() {
-                Some(RightPanel::Bookmarks)
-            } else {
-                None
-            };
+        // Start with page navigation unless the user explicitly closed the pane.
+        if activate && self.right.is_none() && !self.right_panel_closed {
+            self.right = Some(RightPanel::Pages);
         }
         let initial = doc.initial_view();
         self.views.push(DocView::new(id, &doc.info, self.view_defaults));
@@ -2030,6 +2021,9 @@ impl PdfCraftApp {
             return;
         }
         self.left = LeftPanel::Tool(id);
+        if self.mode == Mode::Read {
+            self.mode = Mode::AllTools;
+        }
         self.reveal_tools();
         if let Some(view) = self.active.and_then(|i| self.views.get_mut(i)) {
             view.organize = id == "organize";
@@ -2100,7 +2094,7 @@ impl PdfCraftApp {
     /// Serialize the user's persistent state (recent files, theme). Local only.
     pub fn persist(&self) -> String {
         let trusted: Vec<String> = self.session.trusted_certificates().iter().map(pdfcraft_engine::sign::x509::to_pem).collect();
-        serde_json::json!({
+        let mut state = serde_json::json!({
             "docking": self.docking,
             "docking_left_open": self.left_open,
             "docking_right": self.right,
@@ -2159,8 +2153,11 @@ impl PdfCraftApp {
             "combine_zoom": self.combine_zoom,
             "comments_panel_closed": self.comments_panel_closed,
             "right_panel_closed": self.right_panel_closed,
-        })
-        .to_string()
+        });
+        if let Some(object) = state.as_object_mut() {
+            object.insert("readf_ui_version".into(), serde_json::json!(1));
+        }
+        state.to_string()
     }
 
     /// Restore state written by `persist`. Unknown or malformed data is ignored.
@@ -2209,7 +2206,8 @@ impl PdfCraftApp {
             self.animation_effects = effects;
         }
         if let Ok(mode) = serde_json::from_value::<Mode>(v["default_mode"].clone()) {
-            self.default_mode = mode;
+            // Migrate the old default once; subsequent explicit workspace choices persist.
+            self.default_mode = if v.get("readf_ui_version").is_none() && mode == Mode::AllTools { Mode::Read } else { mode };
         }
         if let Some((layout, continuous)) = v["default_layout"].as_str().and_then(canvas::parse_display_token) {
             (self.view_defaults.layout, self.view_defaults.continuous) = (layout, continuous);
@@ -2378,6 +2376,7 @@ impl PdfCraftApp {
             ("tool", _) => {
                 let g = pdfcraft_engine::catalog::group(value).ok_or_else(|| format!("unknown tool {value}"))?;
                 self.select_tool(g.id);
+                self.mode_override = Some(self.mode);
             }
             ("left", _) => self.left_open = value != "closed",
             ("home", _) => self.active = None,
@@ -2968,24 +2967,15 @@ impl eframe::App for PdfCraftApp {
             window_controls::resize_edges(&ctx);
         }
         chrome::tab_strip(self, ui);
-        chrome::mode_bar(self, ui);
+        if self.active.is_some() {
+            chrome::mode_bar(self, ui);
+        }
         if self.active.is_some() {
             chrome::right_rail(self, ui);
-            // Read mode hides the tools, not the navigation panes: the rail stays visible
-            // there, so its buttons (Bookmarks, Page thumbnails, ...) must open their panels.
-            // Outside Read mode the docking workspace draws the inspector.
-            if self.mode == Mode::Read && self.right.is_some() {
-                egui::Panel::right("read_right_panel")
-                    .resizable(true)
-                    .default_size(330.0)
-                    .size_range(260.0..=520.0)
-                    .frame(egui::Frame::NONE)
-                    .show(ui, |ui| panels::right_panel(self, ui));
-            }
         }
         let t = theme::Tokens::get(&ctx);
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.pasteboard)).show(ui, |ui| {
-            if self.mode == Mode::Read {
+            if self.mode == Mode::Read || self.active.is_none() {
                 match self.active {
                     None if self.combine_showing() => combine_ui::page(self, ui),
                     None => home::show(self, ui),

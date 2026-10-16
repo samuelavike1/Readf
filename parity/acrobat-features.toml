@@ -1130,8 +1130,8 @@ milestone = "M3"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/ui-egui/tests/control.rs::state_and_view_options", "crates/ui-egui/tests/ui.rs::theme_and_view_options_apply", "crates/ui-egui/tests/viewer.rs::two_page_view_steps_a_spread_at_a_time", "crates/ui-egui/tests/viewer.rs::arrow_and_page_keys_move_through_a_scrolling_document"]
-notes = "in two-page view, next and previous page move a whole spread (with or without a cover page); → / ← turn pages in every layout, ↓ / ↑ scroll a line and Page Down / Page Up a screen (the page in single-page view), as in Acrobat; in single-page view ↓ / ↑ turn the page once there is nothing left to scroll that way, like the wheel"
+evidence = ["crates/ui-egui/tests/ui.rs::simple_reader_navigation_collapses_and_restores_the_selected_view", "crates/ui-egui/tests/control.rs::state_and_view_options", "crates/ui-egui/tests/ui.rs::theme_and_view_options_apply", "crates/ui-egui/tests/viewer.rs::two_page_view_steps_a_spread_at_a_time", "crates/ui-egui/tests/viewer.rs::arrow_and_page_keys_move_through_a_scrolling_document"]
+notes = "Readf: compact toolbar and collapsible left navigation with thumbnail/bookmark icon tabs. in two-page view, next and previous page move a whole spread (with or without a cover page); → / ← turn pages in every layout, ↓ / ↑ scroll a line and Page Down / Page Up a screen (the page in single-page view), as in Acrobat; in single-page view ↓ / ↑ turn the page once there is nothing left to scroll that way, like the wheel"
 
 [[feature]]
 id = "view.goto-page-label"
@@ -1238,8 +1238,8 @@ milestone = "M3"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/ui-egui/tests/ui.rs::theme_and_view_options_apply"]
-notes = ""
+evidence = ["crates/ui-egui/tests/ui.rs::simple_reader_navigation_collapses_and_restores_the_selected_view", "crates/ui-egui/tests/ui.rs::theme_and_view_options_apply"]
+notes = "Readf: compact toolbar and collapsible left navigation with thumbnail/bookmark icon tabs. "
 
 [[feature]]
 id = "view.thumbnail-context-ops"
@@ -1262,8 +1262,8 @@ milestone = "M3"
 status = "shipped"
 commands = []
 tools = ["doc_info"]
-evidence = ["crates/ui-egui/tests/ui.rs::opening_a_pdf_shows_comments_and_bookmarks", "crates/ui-egui/tests/control.rs::state_and_view_options", "crates/ui-egui/tests/view.rs::bookmark_destinations_scroll_to_their_position"]
-notes = "A bookmark goes to its destination's position and zoom, not just its page. The panel shows the first 10,000 bookmarks, nested 33 levels deep at most, and says so; bookmark_list pages through every bookmark in the file (up to 33 levels deep)."
+evidence = ["crates/ui-egui/tests/ui.rs::simple_reader_navigation_collapses_and_restores_the_selected_view", "crates/ui-egui/tests/ui.rs::opening_a_pdf_shows_comments_and_bookmarks", "crates/ui-egui/tests/control.rs::state_and_view_options", "crates/ui-egui/tests/view.rs::bookmark_destinations_scroll_to_their_position"]
+notes = "Readf: compact toolbar and collapsible left navigation with thumbnail/bookmark icon tabs. A bookmark goes to its destination's position and zoom, not just its page. The panel shows the first 10,000 bookmarks, nested 33 levels deep at most, and says so; bookmark_list pages through every bookmark in the file (up to 33 levels deep)."
 
 [[feature]]
 id = "view.highlight-current-bookmark"

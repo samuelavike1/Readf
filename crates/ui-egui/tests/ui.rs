@@ -35,7 +35,7 @@ fn harness(setup: impl FnOnce(&mut PdfCraftApp) + 'static) -> Harness<'static, P
 fn home_shows_welcome_and_tools() {
     let h = harness(|_| {});
     h.get_by_label_contains("Welcome to Readf");
-    assert_eq!(h.query_all_by_label("Add comments").count(), 1, "only the existing tools panel remains");
+    assert_eq!(h.query_all_by_label("Add comments").count(), 0, "welcome has no tools sidebar");
     assert!(h.query_by_label("Recommended tools").is_none());
     h.get_by_label("Open a PDF to get started.");
     h.get_by_label("or drop a PDF here");
@@ -122,8 +122,8 @@ fn home_removes_one_recent_file_or_clears_them_all() {
 
 #[test]
 fn every_catalog_tool_is_listed_after_view_more() {
-    let mut h = harness(|_| {});
-    h.get_by_label("View more").click();
+    let mut h = harness(|app| app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).unwrap());
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Tools").click();
     h.run_steps(3);
     for g in pdfcraft_engine::catalog::TOOL_GROUPS {
         assert!(h.query_all_by_label(g.label).count() >= 1, "tool {} missing from All tools", g.label);
@@ -133,7 +133,8 @@ fn every_catalog_tool_is_listed_after_view_more() {
 #[test]
 fn opening_a_pdf_shows_comments_and_bookmarks() {
     let mut h = harness(|app| app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).expect("fixture opens"));
-    // Documents with comments open on the Comments panel, like Acrobat.
+    h.get_by_label("Comments").click();
+    h.run_steps(3);
     h.get_by_label_contains("Check the numbers");
     h.get_by_label("Bookmarks").click();
     h.run_steps(3);
@@ -147,7 +148,7 @@ fn opening_a_pdf_shows_comments_and_bookmarks() {
 fn closed_side_panes_stay_closed_after_a_restart_and_opening_a_pdf() {
     use pdfcraft_ui_egui::RightPanel;
     let mut h = harness(|app| app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).expect("fixture opens"));
-    assert_eq!(h.state().right, Some(RightPanel::Comments));
+    assert_eq!(h.state().right, Some(RightPanel::Pages));
     assert!(h.state().left_open);
     h.state_mut().choose_right_panel(None);
     h.state_mut().set_option("left", "closed").unwrap();
@@ -177,7 +178,7 @@ fn read_mode_rail_buttons_open_their_panels() {
         app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).expect("fixture opens");
     });
     assert_eq!(h.state().mode, Mode::Read);
-    assert_eq!(h.state().right, None, "Read mode opens with the panes closed");
+    assert_eq!(h.state().right, Some(RightPanel::Pages), "Read mode opens with page thumbnails");
     assert!(h.query_by_label("Alpha section").is_none());
     h.get_by_label("Bookmarks").click();
     h.run_steps(3);
@@ -201,8 +202,14 @@ fn read_mode_rail_buttons_open_their_panels() {
 #[test]
 fn read_mode_closes_the_panes_and_leaving_it_brings_them_back() {
     use pdfcraft_ui_egui::{Mode, RightPanel};
-    let mut h = harness(|app| app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).expect("fixture opens"));
+    let mut h = harness(|app| {
+        app.default_mode = Mode::AllTools;
+        app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).expect("fixture opens");
+        app.choose_right_panel(Some(RightPanel::Comments));
+    });
     assert_eq!(h.state().right, Some(RightPanel::Comments));
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Tools").click();
+    h.run_steps(2);
     h.get_by_label("Read").click();
     h.run_steps(3);
     assert_eq!(h.state().mode, Mode::Read);
@@ -217,6 +224,8 @@ fn read_mode_closes_the_panes_and_leaving_it_brings_them_back() {
     h.run_steps(2);
     h.get_by_label("Page thumbnails").click();
     h.run_steps(2);
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Tools").click();
+    h.run_steps(2);
     h.get_by_label("All tools").click();
     h.run_steps(3);
     assert_eq!(h.state().right, Some(RightPanel::Pages));
@@ -227,8 +236,14 @@ fn read_mode_closes_the_panes_and_leaving_it_brings_them_back() {
 #[test]
 fn a_pane_closed_in_read_mode_stays_closed_when_leaving_it() {
     use pdfcraft_ui_egui::{Mode, RightPanel};
-    let mut h = harness(|app| app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).expect("fixture opens"));
+    let mut h = harness(|app| {
+        app.default_mode = Mode::AllTools;
+        app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).expect("fixture opens");
+        app.choose_right_panel(Some(RightPanel::Comments));
+    });
     assert_eq!(h.state().right, Some(RightPanel::Comments));
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Tools").click();
+    h.run_steps(2);
     h.get_by_label("Read").click();
     h.run_steps(3);
     assert_eq!(h.state().right, None);
@@ -241,6 +256,8 @@ fn a_pane_closed_in_read_mode_stays_closed_when_leaving_it() {
     assert_eq!(h.state().right, None);
     assert!(h.state().comments_panel_closed);
     // Leave Read mode through the toolbar.
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Tools").click();
+    h.run_steps(2);
     h.get_by_label("All tools").click();
     h.run_steps(3);
     assert_eq!(h.state().mode, Mode::AllTools);
@@ -732,13 +749,15 @@ fn default_workspace_mode_persists_and_tolerates_invalid_settings() {
         restored.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).unwrap();
         assert_eq!(restored.mode, mode, "session override must not be persisted");
     }
-    for json in ["{}", "{not json", r#"{"default_mode": null}"#, r#"{"default_mode": 5}"#, r#"{"default_mode": "unknown"}"#] {
+    for json in
+        ["{}", "{not json", r#"{"default_mode": null}"#, r#"{"default_mode": 5}"#, r#"{"default_mode": "unknown"}"#, r#"{"default_mode": "all"}"#]
+    {
         let mut app = PdfCraftApp::new();
         app.set_option("language", "en").unwrap();
         app.restore(json);
-        assert_eq!(app.default_mode, Mode::AllTools);
+        assert_eq!(app.default_mode, Mode::Read);
         app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).unwrap();
-        assert_eq!(app.mode, Mode::AllTools);
+        assert_eq!(app.mode, Mode::Read);
     }
 }
 
@@ -793,7 +812,10 @@ fn explicit_mode_overrides_default_before_and_after_open() {
 fn preferences_selects_default_workspace_for_next_open() {
     use egui::accesskit::Role;
     use pdfcraft_ui_egui::Mode;
-    let mut h = harness(|app| app.set_option("dialog", "preferences").unwrap());
+    let mut h = harness(|app| {
+        app.mode = pdfcraft_ui_egui::Mode::AllTools;
+        app.set_option("dialog", "preferences").unwrap();
+    });
     h.get_by_label("Default workspace mode");
     h.get_by_role_and_label(Role::RadioButton, "Read").scroll_to_me();
     h.run_steps(4);
@@ -846,7 +868,10 @@ fn use_system_title_bar_swaps_the_header_bar_for_the_window_frame() {
     assert!(!restored.system_title_bar);
     assert!(restored.set_option("system-title-bar", "maybe").is_err());
     // Where the desktop draws the frame there is nothing to choose.
-    let mut h = harness(|app| app.set_option("dialog", "preferences").unwrap());
+    let mut h = harness(|app| {
+        app.mode = pdfcraft_ui_egui::Mode::AllTools;
+        app.set_option("dialog", "preferences").unwrap();
+    });
     h.run_steps(2);
     assert!(h.query_by_label("Use system title bar").is_none());
     assert!(h.query_by_label("Minimize").is_none());
@@ -859,7 +884,10 @@ fn use_system_title_bar_swaps_the_header_bar_for_the_window_frame() {
 fn preferences_choose_animation_effects_and_the_choice_is_saved() {
     use egui::accesskit::Role;
     use pdfcraft_ui_egui::motion::AnimationEffects;
-    let mut h = harness(|app| app.set_option("dialog", "preferences").unwrap());
+    let mut h = harness(|app| {
+        app.mode = pdfcraft_ui_egui::Mode::AllTools;
+        app.set_option("dialog", "preferences").unwrap();
+    });
     assert_eq!(h.state().animation_effects, AnimationEffects::System);
     h.get_by_label("Animation effects");
     for (label, choice) in [
@@ -1028,13 +1056,13 @@ fn long_german_tool_labels_stay_within_the_sidebar() {
     h.run_steps(4);
     let heading =
         painted_text(&h).into_iter().find(|(s, ..)| s.starts_with("Ausfüllen und")).expect("translated heading is painted, whole or elided");
-    assert!(heading.2.right() <= 272.0, "translated heading runs past the sidebar: {:?}", heading.2);
+    assert!(heading.2.right() <= 316.0, "translated heading runs past the sidebar: {:?}", heading.2);
     // A long sub-tool name must stop before its status chip, not paint over the PDF.
     h.state_mut().left = LeftPanel::Tool("protect");
     h.run_steps(4);
     let item =
         painted_text(&h).into_iter().find(|(s, ..)| s == "Ausgeblendete Informationen entfernen").expect("long translated sub-tool is painted");
-    assert!(item.2.right() <= 272.0, "translated tool item runs past the sidebar: {:?}", item.2);
+    assert!(item.2.right() <= 316.0, "translated tool item runs past the sidebar: {:?}", item.2);
 }
 
 #[test]
@@ -1169,4 +1197,34 @@ fn removed_tools_cannot_be_opened_or_run_from_the_interface() {
     h.run_steps(3);
     assert!(h.query_by_label("Combine files").is_none());
     assert_eq!(h.state().views.iter().map(|v| v.id).collect::<Vec<_>>(), document_ids);
+}
+
+#[test]
+fn simple_reader_navigation_collapses_and_restores_the_selected_view() {
+    use pdfcraft_ui_egui::{Dialog, Mode, RightPanel};
+    let mut h = harness(|app| app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).unwrap());
+    assert_eq!(h.state().mode, Mode::Read);
+    assert_eq!(h.state().right, Some(RightPanel::Pages));
+    assert!(h.query_by_label("All tools").is_none());
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Bookmarks").click();
+    h.run_steps(3);
+    h.get_by_label("Alpha section");
+    assert!(h.get_by_label("Alpha section").rect().right() < 420.0);
+    h.get_by_label("Side panels").click();
+    h.run_steps(3);
+    assert_eq!(h.state().right, None);
+    assert!(h.query_by_label("Alpha section").is_none());
+    h.get_by_label("Side panels").click();
+    h.run_steps(3);
+    assert_eq!(h.state().right, Some(RightPanel::Bookmarks));
+    h.get_by_label("Alpha section");
+    h.get_by_label("Page thumbnails").click();
+    h.run_steps(3);
+    assert_eq!(h.state().right, Some(RightPanel::Pages));
+    h.get_by_label("Next page").click();
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].current, 1);
+    h.get_by_label_contains("Print (").click();
+    h.run_steps(3);
+    assert!(matches!(h.state().dialog, Some(Dialog::Print)));
 }

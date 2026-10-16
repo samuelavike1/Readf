@@ -39,6 +39,7 @@ fn harness() -> Harness<'static, PdfCraftApp> {
     let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_cc| {
         let mut app = PdfCraftApp::new();
         app.set_option("language", "en").unwrap();
+        app.default_mode = pdfcraft_ui_egui::Mode::AllTools;
         app.open_bytes("doc.pdf", None, fixture(3)).unwrap();
         app
     });
@@ -329,6 +330,7 @@ fn clear_recent_files_at_the_foot_of_open_recent_empties_the_list() {
     let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_cc| {
         let mut app = PdfCraftApp::new();
         app.set_option("language", "en").unwrap();
+        app.default_mode = pdfcraft_ui_egui::Mode::AllTools;
         app.open_bytes("doc.pdf", None, fixture(3)).unwrap();
         app.recent.extend([recent_file("first.pdf"), recent_file("second.pdf")]);
         app
@@ -440,7 +442,7 @@ fn view_menu_and_tooltips_write_shortcuts_for_the_platform() {
     h.get_by_label("Rotate view counterclockwise Ctrl+Shift+−");
     h.get_by_label("Previous view Ctrl+[");
     h.get_by_label("Find tools and commands… Ctrl+K");
-    h.get_by_label("Zoom in (Ctrl++)");
+    h.get_by_label("Zoom in Ctrl++");
     h.get_by_label("Print (Ctrl+P)");
     assert_eq!(h.query_all_by_label_contains("⌘").count(), 0, "no ⌘ outside macOS");
     assert_eq!(h.query_all_by_label_contains("Fit visible").count(), 1, "View lists Fit visible once");
@@ -449,7 +451,7 @@ fn view_menu_and_tooltips_write_shortcuts_for_the_platform() {
     let h = view_menu(OperatingSystem::Mac);
     h.get_by_label("Actual size ⌘1");
     h.get_by_label("Fit visible ⌘3");
-    h.get_by_label("Rotate view clockwise (⇧⌘+)");
+    h.get_by_label("Rotate view clockwise ⇧⌘+");
     assert_eq!(h.query_all_by_label_contains("Ctrl+").count(), 0, "no Ctrl+ on macOS");
 }
 
