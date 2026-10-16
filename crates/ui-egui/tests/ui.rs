@@ -1228,3 +1228,17 @@ fn simple_reader_navigation_collapses_and_restores_the_selected_view() {
     h.run_steps(3);
     assert!(matches!(h.state().dialog, Some(Dialog::Print)));
 }
+
+#[test]
+fn reading_toolbar_centers_navigation_and_right_aligns_actions() {
+    let mut h = harness(|app| app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).unwrap());
+    h.run_steps(4);
+    let previous = h.get_by_label("Previous page").rect();
+    let zoom = h.get_by(|node| node.role() == egui::accesskit::Role::Button && node.label().is_some_and(|label| label.ends_with('%'))).rect();
+    let highlight = h.get_by_label("Highlight text").rect();
+    let save = h.get_by_label_contains("Save (").rect();
+    assert!(((previous.left() + zoom.right()) * 0.5 - 700.0).abs() < 3.0, "page controls are centered");
+    assert!((save.right() - 1390.0).abs() < 3.0, "Save is at the right margin: {save:?}");
+    assert!(zoom.right() < highlight.left(), "navigation and actions must not overlap");
+    assert!(h.get_by_label("Find…").rect().right() < previous.left());
+}

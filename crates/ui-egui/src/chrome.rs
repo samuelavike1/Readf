@@ -477,102 +477,132 @@ pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         .exact_size(48.0)
         .frame(egui::Frame::NONE.fill(t.chrome).inner_margin(egui::Margin::symmetric(10, 0)).stroke(Stroke::new(1.0, t.divider)))
         .show(ui, |ui| {
+            let id = ui.id().with("toolbar_group_widths");
+            let widths = ui.data(|d| d.get_temp::<[f32; 3]>(id)).unwrap_or([230.0, 220.0, 360.0]);
+            let available = ui.available_width();
             egui::ScrollArea::horizontal().id_salt("reading_toolbar").show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    main_menu(app, ui);
-                    if widgets::ghost_button(ui, "folder-open", tl!("Open file")).clicked() {
-                        app.open_dialog();
-                    }
-                    ui.add_enabled_ui(app.active.is_some(), |ui| {
-                        if icons::button(ui, "search", 32.0, false, tl!("Find…")).clicked() {
-                            app.run_command("edit.find");
-                        }
-                        if let Some((index, id)) = app.active_ids() {
-                            let labels =
-                                app.session.get(id).map(|d| d.info.pages.iter().map(|p| p.label.clone()).collect::<Vec<_>>()).unwrap_or_default();
-                            if let Some(view) = app.views.get_mut(index) {
-                                ui.separator();
-                                if icons::button(ui, "chevron-left", 30.0, false, tl!("Previous page")).clicked() {
-                                    view.step_page(false);
-                                }
-                                let r = ui.add(egui::TextEdit::singleline(&mut view.page_input).id(egui::Id::new("page-input")).desired_width(34.0));
-                                if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                                    let typed = view.page_input.clone();
-                                    if !view.go_to_typed(&typed, &labels) {
-                                        view.page_input = view.current.saturating_add(1).to_string();
-                                    }
-                                }
-                                ui.label(format!("/ {}", labels.len()));
-                                if icons::button(ui, "chevron-right", 30.0, false, tl!("Next page")).clicked() {
-                                    view.step_page(true);
-                                }
-                                let mut command = None;
-                                ui.menu_button(format!("{:.0}%", view.zoom * 100.0), |ui| {
-                                    if ui.button(tl!("Zoom in")).clicked() {
-                                        view.zoom_step(true);
-                                    }
-                                    if ui.button(tl!("Zoom out")).clicked() {
-                                        view.zoom_step(false);
-                                    }
-                                    command = rail_view_menu(ui, view);
-                                });
-                                if let Some(command) = command {
-                                    app.execute(command);
-                                }
-                            }
-                        }
-                        ui.separator();
-                        if widgets::ghost_button(ui, "highlighter", tl!("Highlight text")).clicked() {
-                            app.run_command("comment.highlight");
-                        }
-                        if widgets::ghost_button(ui, "message-square-text", tl!("Comments")).clicked() {
-                            app.choose_right_panel(if app.right == Some(RightPanel::Comments) { None } else { Some(RightPanel::Comments) });
-                        }
-                    });
-                    ui.menu_button(tl!("Tools"), |ui| {
-                        ui.set_min_width(240.0);
-                        if widgets::ghost_button(ui, "mouse-pointer-2", tl!("Select (V)")).clicked() {
-                            app.quick_tool = crate::QuickTool::Select;
-                            ui.close();
-                        }
-                        if widgets::ghost_button(ui, "hand", tl!("Hand (H)")).clicked() {
-                            app.quick_tool = crate::QuickTool::Hand;
-                            ui.close();
-                        }
-                        if ui.button(tl!("Read")).clicked() {
-                            app.switch_mode(Mode::Read, true);
-                            ui.close();
-                        }
-                        if ui.button(tl!("All tools")).clicked() {
-                            app.switch_mode(Mode::AllTools, true);
-                            ui.close();
-                        }
-                        ui.separator();
-                        for group in pdfcraft_engine::catalog::TOOL_GROUPS {
-                            if widgets::ghost_button(ui, group.icon, tl!(group.label)).clicked() {
-                                app.select_tool(group.id);
-                                ui.close();
-                            }
-                        }
-                        ui.separator();
-                        if widgets::search_box(ui, tl!("Find tools and commands"), 230.0).clicked() {
-                            app.palette_open = true;
-                            ui.close();
-                        }
-                    });
-                    ui.add_enabled_ui(app.active.is_some(), |ui| {
-                        let tip = crate::commands::command_tip(ui.ctx(), tl!("Print ({key})"), "print.dialog");
-                        if icons::button(ui, "printer", 32.0, false, &tip).clicked() {
-                            app.run_command("print.dialog");
-                        }
-                        let tip = crate::commands::command_tip(ui.ctx(), tl!("Save ({key})"), "file.save");
-                        if icons::button(ui, "save", 32.0, false, &tip).clicked() {
-                            app.run_command("file.save");
-                        }
-                    });
-                });
+                let gap = 16.0;
+                let width = available.max(widths.iter().sum::<f32>() + gap * 2.0);
+                let (rect, _) = ui.allocate_exact_size(vec2(width, 38.0), Sense::hover());
+                let right = rect.right() - widths[2];
+                let center = (rect.center().x - widths[1] * 0.5).min(right - widths[1] - gap).max(rect.left() + widths[0] + gap);
+                let mut measured = [0.0; 3];
+                for (index, x, draw) in [
+                    (0, rect.left(), toolbar_file as fn(&mut PdfCraftApp, &mut egui::Ui)),
+                    (1, center, toolbar_navigation),
+                    (2, right, toolbar_actions),
+                ] {
+                    let mut group = ui.new_child(
+                        egui::UiBuilder::new()
+                            .id_salt(index)
+                            .max_rect(Rect::from_min_size(egui::pos2(x, rect.top()), vec2(widths[index], rect.height())))
+                            .layout(Layout::left_to_right(Align::Center)),
+                    );
+                    draw(app, &mut group);
+                    measured[index] = group.min_rect().width();
+                }
+                if widths.iter().zip(measured).any(|(old, new)| (old - new).abs() > 0.5) {
+                    ui.data_mut(|d| d.insert_temp(id, measured));
+                    ui.ctx().request_repaint();
+                }
             });
         });
+}
+fn toolbar_file(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
+    main_menu(app, ui);
+    if widgets::ghost_button(ui, "folder-open", tl!("Open file")).clicked() {
+        app.open_dialog();
+    }
+    ui.add_enabled_ui(app.active.is_some(), |ui| {
+        if icons::button(ui, "search", 32.0, false, tl!("Find…")).clicked() {
+            app.run_command("edit.find");
+        }
+    });
+}
+fn toolbar_navigation(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
+    if let Some((index, id)) = app.active_ids() {
+        let labels = app.session.get(id).map(|d| d.info.pages.iter().map(|p| p.label.clone()).collect::<Vec<_>>()).unwrap_or_default();
+        if let Some(view) = app.views.get_mut(index) {
+            if icons::button(ui, "chevron-left", 30.0, false, tl!("Previous page")).clicked() {
+                view.step_page(false);
+            }
+            let r = ui.add(egui::TextEdit::singleline(&mut view.page_input).id(egui::Id::new("page-input")).desired_width(34.0));
+            if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                let typed = view.page_input.clone();
+                if !view.go_to_typed(&typed, &labels) {
+                    view.page_input = view.current.saturating_add(1).to_string();
+                }
+            }
+            ui.label(format!("/ {}", labels.len()));
+            if icons::button(ui, "chevron-right", 30.0, false, tl!("Next page")).clicked() {
+                view.step_page(true);
+            }
+            let mut command = None;
+            ui.menu_button(format!("{:.0}%", view.zoom * 100.0), |ui| {
+                if ui.button(tl!("Zoom in")).clicked() {
+                    view.zoom_step(true);
+                }
+                if ui.button(tl!("Zoom out")).clicked() {
+                    view.zoom_step(false);
+                }
+                command = rail_view_menu(ui, view);
+            });
+            if let Some(command) = command {
+                app.execute(command);
+            }
+        }
+    }
+}
+fn toolbar_actions(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
+    ui.add_enabled_ui(app.active.is_some(), |ui| {
+        if widgets::ghost_button(ui, "highlighter", tl!("Highlight text")).clicked() {
+            app.run_command("comment.highlight");
+        }
+        if widgets::ghost_button(ui, "message-square-text", tl!("Comments")).clicked() {
+            app.choose_right_panel(if app.right == Some(RightPanel::Comments) { None } else { Some(RightPanel::Comments) });
+        }
+    });
+    ui.menu_button(tl!("Tools"), |ui| {
+        ui.set_min_width(240.0);
+        if widgets::ghost_button(ui, "mouse-pointer-2", tl!("Select (V)")).clicked() {
+            app.quick_tool = crate::QuickTool::Select;
+            ui.close();
+        }
+        if widgets::ghost_button(ui, "hand", tl!("Hand (H)")).clicked() {
+            app.quick_tool = crate::QuickTool::Hand;
+            ui.close();
+        }
+        if ui.button(tl!("Read")).clicked() {
+            app.switch_mode(Mode::Read, true);
+            ui.close();
+        }
+        if ui.button(tl!("All tools")).clicked() {
+            app.switch_mode(Mode::AllTools, true);
+            ui.close();
+        }
+        ui.separator();
+        for group in pdfcraft_engine::catalog::TOOL_GROUPS {
+            if widgets::ghost_button(ui, group.icon, tl!(group.label)).clicked() {
+                app.select_tool(group.id);
+                ui.close();
+            }
+        }
+        ui.separator();
+        if widgets::search_box(ui, tl!("Find tools and commands"), 230.0).clicked() {
+            app.palette_open = true;
+            ui.close();
+        }
+    });
+    ui.add_enabled_ui(app.active.is_some(), |ui| {
+        let tip = crate::commands::command_tip(ui.ctx(), tl!("Print ({key})"), "print.dialog");
+        if icons::button(ui, "printer", 32.0, false, &tip).clicked() {
+            app.run_command("print.dialog");
+        }
+        let tip = crate::commands::command_tip(ui.ctx(), tl!("Save ({key})"), "file.save");
+        if icons::button(ui, "save", 32.0, false, &tip).clicked() {
+            app.run_command("file.save");
+        }
+    });
 }
 
 fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
