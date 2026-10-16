@@ -106,7 +106,7 @@ fn home_removes_one_recent_file_or_clears_them_all() {
         app
     });
     h.run_steps(4);
-    assert!(h.query_by_label("Remove second.pdf from Recent").is_none(), "the remove button shows only over its row");
+    h.get_by_label("Remove second.pdf from Recent"); // Available to keyboards even before hover.
     h.get_by_label("second.pdf").hover();
     h.run_steps(2);
     h.get_by_label("Remove second.pdf from Recent").click();
@@ -185,8 +185,8 @@ fn read_mode_rail_buttons_open_their_panels() {
     assert_eq!(h.state().right, Some(RightPanel::Bookmarks));
     h.get_by_label("Alpha section");
     h.get_by_label("Beta section");
-    // The same button closes them again (the open panel's title is also "Bookmarks").
-    h.get_by_role_and_label(egui::accesskit::Role::Button, "Bookmarks").click();
+    // The toolbar toggle closes the sidebar.
+    h.get_by_label("Toggle sidebar").click();
     h.run_steps(3);
     assert_eq!(h.state().right, None);
     assert!(h.query_by_label("Alpha section").is_none());
@@ -222,7 +222,7 @@ fn read_mode_closes_the_panes_and_leaving_it_brings_them_back() {
     // A pane opened in Read mode stays open on the way out.
     h.state_mut().run_command("view.read_mode");
     h.run_steps(2);
-    h.get_by_label("Toggle bookmarks").click();
+    h.get_by_label("Toggle sidebar").click();
     h.run_steps(2);
     h.get_by_label("Page thumbnails").click();
     h.run_steps(2);
@@ -1209,28 +1209,28 @@ fn simple_reader_navigation_collapses_and_restores_the_selected_view() {
     assert_eq!(h.state().right, Some(RightPanel::Pages));
     assert!(h.query_by_label("All tools").is_none());
     assert!(h.query_by_label("Side panels").is_none());
-    let toggle = h.get_by_label("Toggle bookmarks").rect();
+    let toggle = h.get_by_label("Toggle sidebar").rect();
     assert!(toggle.right() < h.get_by_label("Menu").rect().left());
-    h.get_by_label("Toggle bookmarks").click();
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Bookmarks").click();
     h.run_steps(3);
     assert_eq!(h.state().right, Some(RightPanel::Bookmarks));
     h.get_by_label("Alpha section");
-    h.get_by_label("Toggle bookmarks").click();
+    h.get_by_label("Toggle sidebar").click();
     h.run_steps(3);
     assert_eq!(h.state().right, None);
     assert!(h.query_by_label("Alpha section").is_none());
     assert!(h.query_by_label("Page thumbnails").is_none());
     assert!(h.query_by_label("Bookmarks").is_none());
     assert!(h.query_by_label("Side panels").is_none());
-    h.get_by_label("Toggle bookmarks").click();
+    h.get_by_label("Toggle sidebar").click();
     h.run_steps(3);
     h.get_by_label("Alpha section");
     assert!(h.get_by_label("Alpha section").rect().right() < 420.0);
-    h.get_by_label("Toggle bookmarks").click();
+    h.get_by_label("Toggle sidebar").click();
     h.run_steps(3);
     assert_eq!(h.state().right, None);
     assert!(h.query_by_label("Alpha section").is_none());
-    h.get_by_label("Toggle bookmarks").click();
+    h.get_by_label("Toggle sidebar").click();
     h.run_steps(3);
     assert_eq!(h.state().right, Some(RightPanel::Bookmarks));
     h.get_by_label("Alpha section");
@@ -1257,4 +1257,66 @@ fn reading_toolbar_centers_navigation_and_right_aligns_actions() {
     assert!((save.right() - 1390.0).abs() < 3.0, "Save is at the right margin: {save:?}");
     assert!(zoom.right() < highlight.left(), "navigation and actions must not overlap");
     assert!(h.get_by_label("Find…").rect().right() < previous.left());
+}
+
+#[test]
+fn reading_controls_remain_visible_in_small_windows() {
+    for width in [400.0, 640.0, 800.0] {
+        let mut h = Harness::builder().with_size(egui::vec2(width, 700.0)).build_eframe(|_cc| {
+            let mut app = PdfCraftApp::new();
+            app.set_option("language", "en").unwrap();
+            app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).unwrap();
+            app.choose_right_panel(None);
+            app
+        });
+        h.run_steps(6);
+        for label in ["Print (", "Save (", "Previous page", "Next page"] {
+            let rect = h.get_by_label_contains(label).rect();
+            assert!(rect.left() >= 0.0 && rect.right() <= width, "{label} must fit at {width}: {rect:?}");
+        }
+    }
+}
+
+#[test]
+fn sidebar_toggle_remembers_pages_and_bookmarks() {
+    use pdfcraft_ui_egui::RightPanel;
+    let mut h = harness(|app| app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).unwrap());
+    h.get_by_label("Toggle sidebar").click();
+    h.run_steps(3);
+    assert_eq!(h.state().right, None);
+    h.get_by_label("Toggle sidebar").click();
+    h.run_steps(3);
+    assert_eq!(h.state().right, Some(RightPanel::Pages));
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Bookmarks").click();
+    h.run_steps(3);
+    h.get_by_label("Toggle sidebar").click();
+    h.run_steps(3);
+    assert_eq!(h.state().right, None);
+    h.get_by_label("Toggle sidebar").click();
+    h.run_steps(3);
+    assert_eq!(h.state().right, Some(RightPanel::Bookmarks));
+}
+
+#[test]
+fn recent_file_removal_works_from_keyboard_without_hover() {
+    let mut h = harness(|app| {
+        app.recent.push(pdfcraft_ui_egui::RecentFile { name: "example.pdf".into(), path: "/nowhere/example.pdf".into(), pages: 1, size: 0 })
+    });
+    h.get_by_label("Remove example.pdf from Recent").focus();
+    h.run_steps(2);
+    assert!(h.get_by_label("Remove example.pdf from Recent").is_focused());
+    h.key_press(egui::Key::Enter);
+    h.run_steps(3);
+    assert!(h.state().recent.is_empty());
+}
+
+#[test]
+fn reading_actions_expose_their_active_state() {
+    let mut h = harness(|app| app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).unwrap());
+    h.get_by_label("Highlight text").click();
+    h.run_steps(3);
+    assert_eq!(h.get_by_label("Highlight text").accesskit_node().is_selected(), Some(true));
+    h.state_mut().choose_right_panel(Some(pdfcraft_ui_egui::RightPanel::Comments));
+    h.run_steps(3);
+    assert_eq!(h.get_by_role_and_label(egui::accesskit::Role::Button, "Comments").accesskit_node().is_selected(), Some(true));
 }

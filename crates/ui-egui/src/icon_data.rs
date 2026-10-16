@@ -2,6 +2,7 @@
 //! Generated from the contents of assets/icons/.
 
 pub static ICONS: &[(&str, &[u8])] = &[
+    ("menu", include_bytes!("../../../assets/icons/menu.svg")),
     ("list-tree", include_bytes!("../../../assets/icons/list-tree.svg")),
     ("accessibility", include_bytes!("../../../assets/icons/accessibility.svg")),
     ("align-center", include_bytes!("../../../assets/icons/align-center.svg")),

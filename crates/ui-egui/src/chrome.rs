@@ -473,58 +473,61 @@ fn tab(
 
 pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
+    let stacked = ui.available_width() < 700.0;
+    let compact = ui.available_width() < 1050.0;
     egui::Panel::top("mode_bar")
-        .exact_size(48.0)
+        .exact_size(if stacked { 86.0 } else { 48.0 })
         .frame(egui::Frame::NONE.fill(t.chrome).inner_margin(egui::Margin::symmetric(10, 0)).stroke(Stroke::new(1.0, t.divider)))
         .show(ui, |ui| {
-            let id = ui.id().with("toolbar_group_widths");
-            let widths = ui.data(|d| d.get_temp::<[f32; 3]>(id)).unwrap_or([230.0, 220.0, 360.0]);
-            let available = ui.available_width();
-            egui::ScrollArea::horizontal().id_salt("reading_toolbar").show(ui, |ui| {
-                let gap = 16.0;
-                let width = available.max(widths.iter().sum::<f32>() + gap * 2.0);
-                let (rect, _) = ui.allocate_exact_size(vec2(width, 38.0), Sense::hover());
-                let right = rect.right() - widths[2];
-                let center = (rect.center().x - widths[1] * 0.5).min(right - widths[1] - gap).max(rect.left() + widths[0] + gap);
-                let mut measured = [0.0; 3];
-                for (index, x, draw) in [
-                    (0, rect.left(), toolbar_file as fn(&mut PdfCraftApp, &mut egui::Ui)),
-                    (1, center, toolbar_navigation),
-                    (2, right, toolbar_actions),
-                ] {
-                    let mut group = ui.new_child(
-                        egui::UiBuilder::new()
-                            .id_salt(index)
-                            .max_rect(Rect::from_min_size(egui::pos2(x, rect.top()), vec2(widths[index], rect.height())))
-                            .layout(Layout::left_to_right(Align::Center)),
-                    );
-                    draw(app, &mut group);
-                    measured[index] = group.min_rect().width();
-                }
-                if widths.iter().zip(measured).any(|(old, new)| (old - new).abs() > 0.5) {
-                    ui.data_mut(|d| d.insert_temp(id, measured));
-                    ui.ctx().request_repaint();
-                }
-            });
+            let id = ui.id().with(("toolbar_group_widths", compact, stacked));
+            let widths = ui.data(|d| d.get_temp::<[f32; 3]>(id)).unwrap_or(if compact { [112.0, 220.0, 220.0] } else { [160.0, 220.0, 360.0] });
+            let width = ui.available_width();
+            let (rect, _) = ui.allocate_exact_size(vec2(width, if stacked { 80.0 } else { 38.0 }), Sense::hover());
+            let right = rect.right() - widths[2];
+            let center = if stacked {
+                rect.center().x - widths[1] * 0.5
+            } else {
+                (rect.center().x - widths[1] * 0.5).min(right - widths[1] - 12.0).max(rect.left() + widths[0] + 12.0)
+            };
+            let mut measured = [0.0; 3];
+            for (index, x, draw) in [
+                (0, rect.left(), toolbar_file as fn(&mut PdfCraftApp, &mut egui::Ui, bool)),
+                (1, center, toolbar_navigation),
+                (2, right, toolbar_actions),
+            ] {
+                let y = rect.top() + if stacked && index == 1 { 40.0 } else { 0.0 };
+                let mut group = ui.new_child(
+                    egui::UiBuilder::new()
+                        .id_salt(index)
+                        .max_rect(Rect::from_min_size(egui::pos2(x, y), vec2(widths[index], 38.0)))
+                        .layout(Layout::left_to_right(Align::Center)),
+                );
+                draw(app, &mut group, compact);
+                measured[index] = group.min_rect().width();
+            }
+            if widths.iter().zip(measured).any(|(old, new)| (old - new).abs() > 0.5) {
+                ui.data_mut(|d| d.insert_temp(id, measured));
+                ui.ctx().request_repaint();
+            }
         });
 }
-fn toolbar_file(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
-    let bookmarks_open =
-        app.right == Some(RightPanel::Bookmarks) && (app.mode == Mode::Read || app.docking.exposed(crate::docking::Panel::Inspector));
-    if icons::button(ui, "list-tree", 32.0, bookmarks_open, tl!("Toggle bookmarks")).clicked() {
-        app.choose_right_panel(if bookmarks_open { None } else { Some(RightPanel::Bookmarks) });
+fn toolbar_file(app: &mut PdfCraftApp, ui: &mut egui::Ui, compact: bool) {
+    let open = app.right.is_some() && (app.mode == Mode::Read || app.docking.exposed(crate::docking::Panel::Inspector));
+    if icons::button(ui, "list-tree", 32.0, open, tl!("Toggle sidebar")).clicked() {
+        let remembered = ui.data(|d| d.get_temp::<RightPanel>(egui::Id::new("navigation_selected"))).unwrap_or(RightPanel::Bookmarks);
+        if let Some(panel) = app.right {
+            ui.data_mut(|d| d.insert_temp(egui::Id::new("navigation_selected"), panel));
+        }
+        app.choose_right_panel(if open { None } else { Some(remembered) });
     }
-    main_menu(app, ui);
-    if widgets::ghost_button(ui, "folder-open", tl!("Open file")).clicked() {
-        app.open_dialog();
-    }
+    main_menu(app, ui, compact);
     ui.add_enabled_ui(app.active.is_some(), |ui| {
         if icons::button(ui, "search", 32.0, false, tl!("Find…")).clicked() {
             app.run_command("edit.find");
         }
     });
 }
-fn toolbar_navigation(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
+fn toolbar_navigation(app: &mut PdfCraftApp, ui: &mut egui::Ui, _compact: bool) {
     if let Some((index, id)) = app.active_ids() {
         let labels = app.session.get(id).map(|d| d.info.pages.iter().map(|p| p.label.clone()).collect::<Vec<_>>()).unwrap_or_default();
         if let Some(view) = app.views.get_mut(index) {
@@ -558,12 +561,36 @@ fn toolbar_navigation(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         }
     }
 }
-fn toolbar_actions(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
+fn toolbar_action(ui: &mut egui::Ui, icon: &str, label: &str, selected: bool, compact: bool) -> egui::Response {
+    if compact {
+        let response = icons::button(ui, icon, 32.0, selected, label);
+        ui.ctx().accesskit_node_builder(response.id, |node| node.set_selected(selected));
+        return response;
+    }
+    let background = ui.painter().add(egui::Shape::Noop);
+    let response = widgets::ghost_button(ui, icon, label);
+    ui.ctx().accesskit_node_builder(response.id, |node| node.set_selected(selected));
+    if selected {
+        let t = Tokens::get(ui.ctx());
+        ui.painter().set(background, egui::Shape::rect_filled(response.rect, CornerRadius::same(6), t.selected));
+    }
+    response
+}
+
+fn toolbar_actions(app: &mut PdfCraftApp, ui: &mut egui::Ui, compact: bool) {
     ui.add_enabled_ui(app.active.is_some(), |ui| {
-        if widgets::ghost_button(ui, "highlighter", tl!("Highlight text")).clicked() {
+        if toolbar_action(
+            ui,
+            "highlighter",
+            tl!("Highlight text"),
+            app.quick_tool == crate::QuickTool::Comment(crate::comments::CommentTool::Highlight),
+            compact,
+        )
+        .clicked()
+        {
             app.run_command("comment.highlight");
         }
-        if widgets::ghost_button(ui, "message-square-text", tl!("Comments")).clicked() {
+        if toolbar_action(ui, "message-square-text", tl!("Comments"), app.right == Some(RightPanel::Comments), compact).clicked() {
             app.choose_right_panel(if app.right == Some(RightPanel::Comments) { None } else { Some(RightPanel::Comments) });
         }
     });
@@ -610,9 +637,9 @@ fn toolbar_actions(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     });
 }
 
-fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
+fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui, compact: bool) {
     let t = Tokens::get(ui.ctx());
-    let resp = widgets::ghost_button(ui, "panel-left", tl!("Menu"));
+    let resp = toolbar_action(ui, "menu", tl!("Menu"), false, compact);
     egui::Popup::menu(&resp).show(|ui| {
         ui.set_min_width(230.0);
         ui.menu_button(tl!("File"), |ui| crate::commands::registry_menu(app, ui, "File"));
@@ -696,6 +723,9 @@ fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
 
 /// Navigation tabs are visible only while their panel is open.
 pub fn right_rail(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
+    if let Some(panel) = app.right {
+        ui.data_mut(|d| d.insert_temp(egui::Id::new("navigation_selected"), panel));
+    }
     if app.right.is_none() || (app.mode != Mode::Read && !app.docking.exposed(crate::docking::Panel::Inspector)) {
         return;
     }
@@ -707,7 +737,9 @@ pub fn right_rail(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
             .size_range(200.0..=420.0)
             .frame(egui::Frame::NONE.fill(t.panel))
             .show(ui, |ui| {
-                ui.horizontal(|ui| navigation_buttons(app, ui));
+                if !matches!(app.right, Some(RightPanel::Pages | RightPanel::Bookmarks)) {
+                    ui.horizontal(|ui| navigation_buttons(app, ui));
+                }
                 crate::panels::right_panel(app, ui);
             });
     } else {

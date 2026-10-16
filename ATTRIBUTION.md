@@ -4,7 +4,7 @@
 
 Every asset PdfCraft includes, bundles or uses to build its published material, with its author, source and licence. The policy is in [AGENTS.md](AGENTS.md) §1. The machine-readable list, with SHA-256 hashes, is [ATTRIBUTION.toml](ATTRIBUTION.toml). Licence texts are kept beside the assets and summarised in [NOTICE](NOTICE).
 
-## In this repository (266)
+## In this repository (267)
 
 | Asset | Title | Author | Licence | Source | Used for |
 |---|---|---|---|---|---|
@@ -274,6 +274,7 @@ Every asset PdfCraft includes, bundles or uses to build its published material, 
 | `assets/app-icon/readf.icns` | Readf logo (icns) | Fayez | MIT OR Apache-2.0 | Contributor-original/generated artwork supplied by Fayez, 2026-10-15; see assets/app-icon/README-readf.md | Readf application branding and platform icon |
 | `assets/app-icon/readf-256.png` | Readf app icon, 256 px | Fayez | MIT OR Apache-2.0 | Derived from contributor-original assets/app-icon/readf.png, supplied 2026-10-15 | Linux and FreeBSD desktop icon |
 | `assets/icons/list-tree.svg` | Lucide icon "list-tree" | Lucide Contributors (portions Cole Bemis, Feather) | ISC | https://github.com/lucide-icons/lucide (npm lucide-static 1.49.0, icons/list-tree.svg) | Bookmarks toggle in the reading toolbar |
+| `assets/icons/menu.svg` | Lucide menu icon | Lucide Contributors (portions Cole Bemis, Feather) | ISC | https://github.com/lucide-icons/lucide (npm lucide-static 1.49.0, icons/menu.svg) | Main menu button |
 
 ## Compiled in through dependencies (6)
 

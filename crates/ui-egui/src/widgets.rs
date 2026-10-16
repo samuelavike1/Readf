@@ -146,6 +146,18 @@ pub fn pill_button(ui: &mut egui::Ui, label: &str, primary: bool) -> Response {
     theme::hand(resp)
 }
 
+/// Visible keyboard focus for controls painted by hand.
+pub fn focus_outline(ui: &egui::Ui, response: &Response) {
+    if response.has_focus() {
+        ui.painter().rect_stroke(
+            response.rect.shrink(1.0),
+            CornerRadius::same(6),
+            Stroke::new(2.0, Tokens::get(ui.ctx()).accent_text),
+            egui::StrokeKind::Inside,
+        );
+    }
+}
+
 /// Icon + label, transparent until hovered.
 pub fn ghost_button(ui: &mut egui::Ui, icon: &str, label: &str) -> Response {
     ghost_button_sized(ui, icon, label, 30.0)
@@ -163,6 +175,7 @@ pub fn ghost_button_sized(ui: &mut egui::Ui, icon: &str, label: &str, height: f3
     let body = rect.translate(press.offset());
     icons::paint(ui, Rect::from_min_size(body.min + vec2(6.0, (height - 18.0) / 2.0), vec2(18.0, 18.0)), icon, 17.0, t.icon);
     ui.painter().text(body.left_center() + vec2(30.0, 0.0), Align2::LEFT_CENTER, label, font, t.text);
+    focus_outline(ui, &resp);
     theme::hand(resp)
 }
 

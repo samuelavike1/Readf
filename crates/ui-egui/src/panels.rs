@@ -466,6 +466,8 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let Some(panel) = app.right else { return };
     let mut nav: Option<Nav> = None;
     let mut close = false;
+    let mut navigation = None;
+    let compact_header = app.mode == crate::Mode::Read && matches!(panel, RightPanel::Pages | RightPanel::Bookmarks);
     let mut toggle_layer: Option<(usize, bool)> = None;
     let mut attachment_action: Option<(usize, bool)> = None; // (index, open instead of save)
     let mut bm_action: Option<BmAction> = None;
@@ -511,7 +513,17 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     RightPanel::Compare => ("Compare", compare.as_ref().filter(|c| c.new == id).map(|c| c.result.changes.len())),
                 };
                 ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(tl!(title)).font(theme::semibold(15.5)));
+                    if compact_header {
+                        for (target, icon, label) in
+                            [(RightPanel::Pages, "files", "Page thumbnails"), (RightPanel::Bookmarks, "bookmark", "Bookmarks")]
+                        {
+                            if icons::button(ui, icon, 28.0, panel == target, tl!(label)).clicked() {
+                                navigation = Some(target);
+                            }
+                        }
+                    } else {
+                        ui.label(egui::RichText::new(tl!(title)).font(theme::semibold(15.5)));
+                    }
                     if let Some(c) = count {
                         ui.label(egui::RichText::new(c.to_string()).font(theme::medium(13.0)).color(t.text_faint));
                     }
@@ -609,6 +621,13 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     RightPanel::Bookmarks => {
                         if info.outline.is_empty() {
                             empty(ui, &t, "bookmark", "This document has no bookmarks.");
+                            if bm_editable {
+                                ui.vertical_centered(|ui| {
+                                    if widgets::ghost_button(ui, "bookmark-plus", tl!("Add bookmark")).clicked() {
+                                        bm_action = Some(BmAction::New);
+                                    }
+                                });
+                            }
                         }
                         let mut ctx = OutlineCtx {
                             nav: &mut nav,
@@ -722,6 +741,8 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     }
     if close {
         app.choose_right_panel(None);
+    } else if let Some(panel) = navigation {
+        app.choose_right_panel(Some(panel));
     }
     if let Some(e) = panel_edit {
         app.apply_edit(e);

@@ -32,6 +32,7 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     let start = rect.center() - vec2((label.size().x + 40.0) * 0.5, 0.0);
                     icons::paint(ui, Rect::from_center_size(start + vec2(13.0, 0.0), vec2(26.0, 26.0)), "folder-open", 26.0, egui::Color32::WHITE);
                     ui.painter().galley(start + vec2(40.0, -label.size().y * 0.5), label, egui::Color32::WHITE);
+                    widgets::focus_outline(ui, &resp);
                     if theme::hand(resp).clicked() {
                         app.open_dialog();
                     }
@@ -69,7 +70,7 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     } else {
                         press.wash(ui, rect, 8, false);
                     }
-                    if hovered {
+                    {
                         // Remove just this file from the list (#430); the file itself is untouched.
                         let x_rect = Rect::from_center_size(rect.right_center() - vec2(26.0, 0.0), vec2(28.0, 28.0));
                         let x = ui.interact(x_rect, ui.id().with(("remove-recent", &r.path)), Sense::click());
@@ -78,7 +79,10 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         if x.hovered() {
                             ui.painter().rect_filled(x_rect, CornerRadius::same(6), t.pressed);
                         }
-                        icons::paint(ui, x_rect.shrink(6.0), "x", 16.0, t.icon);
+                        if hovered || resp.has_focus() || x.has_focus() {
+                            icons::paint(ui, x_rect.shrink(6.0), "x", 16.0, t.icon);
+                        }
+                        widgets::focus_outline(ui, &x);
                         if x.on_hover_text(tl!("Remove from Recent")).clicked() {
                             remove = Some(r.path.clone());
                         }
@@ -97,6 +101,7 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     let width = detail.left() - 16.0 - (body.left() + 46.0);
                     widgets::row_text(ui, body.min + vec2(46.0, 15.0), crate::bidi::visual(&r.name), theme::medium(13.5), t.text, width);
                     widgets::row_text(ui, body.min + vec2(46.0, 32.0), crate::bidi::visual(&r.path), theme::regular(11.0), t.text_faint, width);
+                    widgets::focus_outline(ui, &resp);
                     if theme::hand(resp).on_hover_text(&r.path).clicked() {
                         open = Some(r.path.clone());
                     }
