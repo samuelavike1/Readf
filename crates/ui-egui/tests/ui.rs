@@ -222,6 +222,8 @@ fn read_mode_closes_the_panes_and_leaving_it_brings_them_back() {
     // A pane opened in Read mode stays open on the way out.
     h.state_mut().run_command("view.read_mode");
     h.run_steps(2);
+    h.get_by_label("Toggle bookmarks").click();
+    h.run_steps(2);
     h.get_by_label("Page thumbnails").click();
     h.run_steps(2);
     h.get_by_role_and_label(egui::accesskit::Role::Button, "Tools").click();
@@ -1206,6 +1208,7 @@ fn simple_reader_navigation_collapses_and_restores_the_selected_view() {
     assert_eq!(h.state().mode, Mode::Read);
     assert_eq!(h.state().right, Some(RightPanel::Pages));
     assert!(h.query_by_label("All tools").is_none());
+    assert!(h.query_by_label("Side panels").is_none());
     let toggle = h.get_by_label("Toggle bookmarks").rect();
     assert!(toggle.right() < h.get_by_label("Menu").rect().left());
     h.get_by_label("Toggle bookmarks").click();
@@ -1216,15 +1219,18 @@ fn simple_reader_navigation_collapses_and_restores_the_selected_view() {
     h.run_steps(3);
     assert_eq!(h.state().right, None);
     assert!(h.query_by_label("Alpha section").is_none());
-    h.get_by_role_and_label(egui::accesskit::Role::Button, "Bookmarks").click();
+    assert!(h.query_by_label("Page thumbnails").is_none());
+    assert!(h.query_by_label("Bookmarks").is_none());
+    assert!(h.query_by_label("Side panels").is_none());
+    h.get_by_label("Toggle bookmarks").click();
     h.run_steps(3);
     h.get_by_label("Alpha section");
     assert!(h.get_by_label("Alpha section").rect().right() < 420.0);
-    h.get_by_label("Side panels").click();
+    h.get_by_label("Toggle bookmarks").click();
     h.run_steps(3);
     assert_eq!(h.state().right, None);
     assert!(h.query_by_label("Alpha section").is_none());
-    h.get_by_label("Side panels").click();
+    h.get_by_label("Toggle bookmarks").click();
     h.run_steps(3);
     assert_eq!(h.state().right, Some(RightPanel::Bookmarks));
     h.get_by_label("Alpha section");

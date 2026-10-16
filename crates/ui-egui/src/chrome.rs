@@ -694,8 +694,11 @@ fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     });
 }
 
-/// A resizable navigation pane with icon tabs, or a thin rail when collapsed.
+/// Navigation tabs are visible only while their panel is open.
 pub fn right_rail(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
+    if app.right.is_none() || (app.mode != Mode::Read && !app.docking.exposed(crate::docking::Panel::Inspector)) {
+        return;
+    }
     let t = Tokens::get(ui.ctx());
     if app.mode == Mode::Read && app.right.is_some() {
         egui::Panel::left("read_right_panel")
@@ -722,14 +725,6 @@ fn navigation_buttons(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         if icons::button(ui, icon, 32.0, selected, tl!(label)).clicked() {
             app.choose_right_panel(if selected { None } else { Some(panel) });
         }
-    }
-    let open = app.right.is_some();
-    if icons::button(ui, if open { "chevron-left" } else { "chevron-right" }, 32.0, false, tl!("Side panels")).clicked() {
-        let remembered = ui.data(|d| d.get_temp::<RightPanel>(egui::Id::new("navigation_selected"))).unwrap_or(RightPanel::Pages);
-        if let Some(panel) = app.right {
-            ui.data_mut(|d| d.insert_temp(egui::Id::new("navigation_selected"), panel));
-        }
-        app.choose_right_panel(if open { None } else { Some(remembered) });
     }
 }
 

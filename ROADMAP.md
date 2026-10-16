@@ -1,5 +1,6 @@
 # PdfCraft roadmap
 
+- **2026-10-16 (M3, collapsed navigation):** Removed the sidebar arrow and hide the entire navigation rail when collapsed; the toolbar list-tree button reopens Bookmarks.
 - **2026-10-16 (M3, bookmarks toggle):** Added a Lucide list-tree button before Menu to open and collapse Bookmarks.
 - **2026-10-16 (M3, red accents):** Replaced wine-colored interface accents with red in light and dark themes, including the welcome action and selected controls.
 - **2026-10-16 (M3, toolbar alignment):** Centered the page navigation and zoom group, right-aligned Highlight/Comments/Tools/Print/Save, and retained left-aligned file controls. Measured group widths accommodate translated labels and narrow windows without overlap.
