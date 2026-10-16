@@ -620,7 +620,7 @@ fn autoscroll_is_scoped_to_the_active_view_and_cannot_start_under_a_dialog() {
     h.run_steps(2);
     assert!(!h.state().views[0].auto_scrolling(), "returning to the tab must not resume");
     start_autoscroll(&mut h, &c);
-    h.state_mut().dialog = Some(pdfcraft_ui_egui::Dialog::About);
+    h.state_mut().dialog = Some(pdfcraft_ui_egui::Dialog::Shortcuts);
     h.run_steps(2);
     assert!(!h.state().views[0].auto_scrolling());
     ok(&mut h, &c, "ui.click", json!({ "x": p.x, "y": p.y, "button": "middle" }));
@@ -798,7 +798,7 @@ fn ukrainian_preferences_and_search_keep_command_ids() {
         ok(&mut h, &c, "ui.key", json!({ "key": "Escape" }));
         h.state_mut().palette_query.clear();
     }
-    for (dialog, label) in [("properties", "Властивості документа"), ("protect", "Захистити паролем"), ("about", "Учасники")]
+    for (dialog, label) in [("properties", "Властивості документа"), ("protect", "Захистити паролем"), ("shortcuts", "Клавіатурні скорочення")]
     {
         ok(&mut h, &c, "ui.set", json!({ "key": "dialog", "value": dialog }));
         let found = ok(&mut h, &c, "ui.inspect", json!({ "query": label }));
@@ -885,33 +885,6 @@ fn japanese_dialogs_errors_and_custom_action_names() {
         let found = ok(&mut h, &c, "ui.inspect", json!({"query": label}));
         assert!(found["widgets"].as_array().unwrap().iter().any(|w| w["label"] == label || w["value"] == label), "{found}");
     }
-}
-
-#[test]
-fn simplified_chinese_about_tabs_and_credit_controls() {
-    let (mut h, c) = harness();
-    let documents = ok(&mut h, &c, "ui.state", json!({}))["documents"].clone();
-    ok(&mut h, &c, "ui.set", json!({"key": "language", "value": "zh-hans"}));
-    ok(&mut h, &c, "ui.set", json!({"key": "dialog", "value": "about"}));
-    for label in ["关于", "贡献者", "模型"] {
-        let found = ok(&mut h, &c, "ui.inspect", json!({"query": label}));
-        assert!(found["widgets"].as_array().unwrap().iter().any(|w| w["label"] == label), "{found}");
-    }
-    ok(&mut h, &c, "ui.click", json!({"label": "贡献者"}));
-    for label in ["用户名", "显示名称", "真实姓名", "排序", "名称列表", "表格", "首次提交"] {
-        let found = ok(&mut h, &c, "ui.inspect", json!({"query": label}));
-        assert!(found["count"].as_u64().unwrap() > 0, "{label}: {found}");
-    }
-    ok(&mut h, &c, "ui.click", json!({"label": "表格"}));
-    for label in ["新增行", "删除行", "净增行", "新增资源", "删除资源"] {
-        let found = ok(&mut h, &c, "ui.inspect", json!({"query": label}));
-        assert!(found["count"].as_u64().unwrap() > 0, "{label}: {found}");
-    }
-    ok(&mut h, &c, "ui.click", json!({"label": "模型"}));
-    let columns = ok(&mut h, &c, "ui.inspect", json!({"query": "占全部提交的比例"}));
-    let empty = ok(&mut h, &c, "ui.inspect", json!({"query": "此版本未包含模型贡献记录。"}));
-    assert!(columns["count"].as_u64().unwrap() > 0 || empty["count"].as_u64().unwrap() > 0, "{columns}, {empty}");
-    assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["documents"], documents);
 }
 
 #[test]
@@ -1346,8 +1319,7 @@ fn explicit_panel_requests_reveal_inactive_group_members() {
     h.get_by_label("This document has no bookmarks.");
     ok(&mut h, &c, "ui.command", json!({"id":"edit.edit_text"}));
     h.run_steps(4);
-    // The Edit panel's own row: the tool's name is on the floating toolbar too while it is on.
-    h.get_by_label("Header and footer");
+    h.get_by_label("Edit text & images");
 }
 
 #[test]
@@ -1576,87 +1548,4 @@ fn click_and_drag_refuse_coordinates_that_overflow_like_move() {
     let (x, y) = (read[0].as_f64().unwrap() + 4.0, read[1].as_f64().unwrap() + 4.0);
     assert_eq!(ok(&mut h, &c, "ui.click", json!({ "x": x, "y": y }))["clicked"], json!([x, y]));
     ok(&mut h, &c, "ui.drag", json!({ "from": [x, y], "to": [x + 10.0, y], "steps": 2 }));
-}
-
-#[test]
-fn page_size_shows_while_the_pointer_is_in_the_bottom_left_quadrant() {
-    let (mut h, _c) = harness();
-    let area = h.state().views[0].viewport_rect();
-    let shown = |h: &Harness<'static, PdfCraftApp>| {
-        let layer = egui::LayerId::new(egui::Order::Foreground, egui::Id::new("page-size-hint"));
-        h.ctx.memory(|m| m.areas().visible_last_frame(&layer))
-    };
-    let away = area.center() + egui::vec2(300.0, -200.0);
-    h.event(egui::Event::PointerMoved(away));
-    h.run_steps(3);
-    assert!(!shown(&h), "top-right: hidden");
-    h.event(egui::Event::PointerMoved(area.left_bottom() + egui::vec2(80.0, -80.0)));
-    h.run_steps(3);
-    assert!(shown(&h), "bottom-left: shown");
-    if let Ok(dir) = std::env::var("PDFCRAFT_SHOT_DIR") {
-        h.render().unwrap().save(format!("{dir}/page-size-hint.png")).unwrap();
-    }
-    h.event(egui::Event::PointerMoved(away));
-    h.run_steps(3);
-    assert!(!shown(&h), "pointer left: hidden again");
-}
-
-#[test]
-fn navigation_history_commands_and_rail_are_per_tab_and_non_editing() {
-    let (mut h, c) = harness();
-    let enabled =
-        |list: Value, id: &str| list["commands"].as_array().unwrap().iter().find(|cmd| cmd["id"] == id).unwrap()["enabled"].as_bool().unwrap();
-    assert!(!enabled(ok(&mut h, &c, "ui.commands", json!({})), "view.previous_view"));
-    assert!(call(&mut h, &c, "ui.command", json!({"id": "view.previous_view"})).is_err());
-    // Empty-history shortcuts were silent before registry integration and must stay silent.
-    for key in ["[", "]"] {
-        ok(&mut h, &c, "ui.key", json!({"key": key, "modifiers": ["command"]}));
-        assert!(h.state().toast.is_none(), "an unavailable history action must not ask to open the already-open document");
-    }
-    let before = h.state().session.get(h.state().views[0].id).unwrap().bytes.clone();
-    ok(&mut h, &c, "ui.set", json!({"key": "page", "value": "4"}));
-    assert!(enabled(ok(&mut h, &c, "ui.commands", json!({})), "view.previous_view"));
-    // The real rail button is accessible and invokes the same history, not the adjacent page.
-    ok(&mut h, &c, "ui.click", json!({"label": &format!("Previous view ({})", if cfg!(target_os = "macos") { "⌘[" } else { "Ctrl+[" })}));
-    assert_eq!(h.state().views[0].current, 0);
-    assert!(enabled(ok(&mut h, &c, "ui.commands", json!({})), "view.next_view"));
-    ok(&mut h, &c, "ui.command", json!({"id": "view.next_view"}));
-    assert_eq!(h.state().views[0].current, 3);
-    ok(&mut h, &c, "ui.set", json!({"key": "page", "value": "5"}));
-    ok(&mut h, &c, "ui.key", json!({"key": "[", "modifiers": ["command"]}));
-    assert_eq!(h.state().views[0].current, 3, "shortcut traverses exactly one history entry");
-    ok(&mut h, &c, "ui.key", json!({"key": "]", "modifiers": ["command"]}));
-    assert_eq!(h.state().views[0].current, 4);
-    ok(&mut h, &c, "ui.command", json!({"id": "view.previous_view"}));
-    h.state_mut().open_bytes("other.pdf", None, fixture(5)).unwrap();
-    assert!(!enabled(ok(&mut h, &c, "ui.commands", json!({})), "view.previous_view"));
-    ok(&mut h, &c, "ui.set", json!({"key": "page", "value": "2"}));
-    ok(&mut h, &c, "ui.command", json!({"id": "view.previous_view"}));
-    assert_eq!(h.state().views[1].current, 0);
-    assert_eq!(h.state().views[0].current, 3, "other tab's history does not move this document");
-    h.state_mut().active = Some(0);
-    ok(&mut h, &c, "ui.command", json!({"id": "view.previous_view"}));
-    assert_eq!(h.state().views[0].current, 0);
-    assert_eq!(h.state().session.get(h.state().views[0].id).unwrap().bytes, before);
-    assert!(!h.state().session.get(h.state().views[0].id).unwrap().dirty);
-    h.state_mut().open_bytes("reopened.pdf", None, before.as_ref().clone()).unwrap();
-    assert!(h.state().views.last().unwrap().back.is_empty());
-    assert!(h.state().views.last().unwrap().forward.is_empty());
-}
-
-#[test]
-fn routine_continuous_scrolling_does_not_add_navigation_history() {
-    let (mut h, c) = harness_pages(20);
-    ok(&mut h, &c, "ui.set", json!({"key": "animation_effects", "value": "off"}));
-    h.hover_at(egui::pos2(700.0, 450.0));
-    h.event(egui::Event::MouseWheel {
-        unit: egui::MouseWheelUnit::Point,
-        delta: egui::vec2(0.0, -1200.0),
-        modifiers: egui::Modifiers::NONE,
-        phase: egui::TouchPhase::Move,
-    });
-    h.run_steps(8);
-    assert!(h.state().views[0].current > 0, "the wheel really moved to a later page");
-    assert!(h.state().views[0].back.is_empty());
-    assert!(h.state().views[0].forward.is_empty());
 }

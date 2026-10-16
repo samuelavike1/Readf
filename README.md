@@ -1,18 +1,10 @@
-<p align="center">
-  <a href="https://getartcraft.com/">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/brand/artcraft-logo-white.svg">
-      <img alt="ArtCraft" src="docs/brand/artcraft-logo.svg" width="200">
-    </picture>
-  </a>
-</p>
+<h1 align="center">Readf</h1>
 
-
-<h1 align="center">PdfCraft</h1>
+Readf is a customized version of PdfCraft, based on upstream [v0.8.0](https://github.com/storytold/pdfcraft/releases/tag/v0.8.0) (`9931329b`). Later development changes are intentionally excluded until a release is selected and validated. Internal package names and settings paths remain compatible with upstream. Future upgrades use a selected upstream release tag or reviewed fix commits, with Readf’s interface changes preserved and tested.
 
 <p align="center">
   <b>The PDF workbench; an open-source, clean-room reimplementation of Adobe Acrobat, rebuilt in pure Rust.</b><br>
-  Read, organize, combine, split and secure PDFs in a fast, native app, written in Rust from the ground up.<br>
+  Read, annotate, edit and secure PDFs in a native app, written in Rust.<br>
   macOS · Windows · Linux · FreeBSD · the web
 </p>
 
@@ -68,7 +60,7 @@
 
 PdfCraft is part of [ArtCraft](https://getartcraft.com). Come say hello, get help and follow development:
 
-- **Discord: [discord.gg/artcraft](https://discord.gg/artcraft)**. This is the fastest way to get help and share feedback. The app has a Discord button in its title bar.
+- **Discord: [discord.gg/artcraft](https://discord.gg/artcraft)**. This is the fastest way to get help and share feedback.
 - **Web page:** [getartcraft.com/apps/pdfcraft](https://getartcraft.com/apps/pdfcraft)
 - **Source:** [github.com/storytold/pdfcraft](https://github.com/storytold/pdfcraft)
 
@@ -172,7 +164,7 @@ Open **Organize pages** to see every page at once:
 **Saves you can trust:**
 - *Incremental:* the original bytes stay byte-for-byte intact.
 - *Atomic:* the file is written to a temporary copy, then swapped in.
-- *Verified:* independently checked with qpdf, on every CI run.
+- *Verified:* independently checked with qpdf.
 
 When open documents exceed the window width, scroll over the tab strip with the mouse wheel or trackpad, or use its horizontal scrollbar. Opening or switching to a document brings its tab into view.
 
@@ -199,7 +191,7 @@ Every page of a combined document renders pixel-identical to its source.
 
 ```sh
 pdfcraft-cli combine report.pdf appendix.pdf --out combined.pdf
-pdfcraft-cli extract report.pdf --pages 1,3,5-8 --out highlights.pdf
+pdfcraft-cli extract report.pdf --pages 1,3,5 --out highlights.pdf
 pdfcraft-cli split   report.pdf --every 10 --out-dir parts/
 ```
 
@@ -248,12 +240,10 @@ Press <kbd>⌘K</kbd> to search every tool and command, or browse the **All tool
 
 <table>
 <tr>
-<td width="50%"><img src="docs/images/pdfcraft-palette.png" alt="The command palette searching for 'page', listing Page grid, Page labels, Rotate pages, Insert pages, Delete pages, Extract pages and more, each with the tool it belongs to"></td>
-<td width="50%"><img src="docs/images/pdfcraft-tools.png" alt="The Welcome to PdfCraft home screen with recommended tools, a recent file, a privacy note, and the full tool catalogue in the side panel"></td>
+<td width="100%"><img src="docs/images/pdfcraft-palette.png" alt="The command palette searching for 'page', listing Page grid, Page labels, Rotate pages, Insert pages, Delete pages, Extract pages and more, each with the tool it belongs to"></td>
 </tr>
 <tr>
 <td align="center"><sub>The <kbd>⌘K</kbd> command palette</sub></td>
-<td align="center"><sub>The home screen and the All tools catalogue</sub></td>
 </tr>
 </table>
 
@@ -285,7 +275,6 @@ Every engine feature is reachable without the GUI, through one table of JSON-Sch
   pdfcraft-cli run text_find doc=1 query=invoice            # key=value; values parse as JSON
   pdfcraft-cli run --script review.json                     # e.g. comment_add {"type": "highlight", "find": "total due"}
   pdfcraft-cli run --script steps.json --root ./work        # several steps in one session
-  pdfcraft-cli run --script steps.json --report             # one JSON document: per step its number, tool, status, result or error
   ```
 
   With `--root`, every file the script's steps read or write stays in that directory, including the PNG a step saves with `"out"` (the script itself is read from wherever you name it).
@@ -366,8 +355,7 @@ On top of those, two corpus sweeps run over real-world files:
 - **Opening and rendering:** of the 983 pdf.js test files, 963 open and render cleanly, with 0 crashes.
 - **Open, edit and save round trips:** 958 succeed.
 
-The output is verified against independent implementations: hayro and qpdf on every CI run, and
-poppler over the corpus on demand (`cargo xtask text-oracle`).
+The output is verified with independent tools: hayro, qpdf and poppler.
 
 PdfCraft is a clean-room implementation. Its behaviour comes from the ISO 32000 specification and black-box observation, never from anyone else's code. Every icon, font and image is openly licensed and listed in [ATTRIBUTION.md](ATTRIBUTION.md).
 
@@ -453,40 +441,17 @@ logs and crash recovery in a `PdfCraftData` folder next to `pdfcraft.exe`, so no
 `%APPDATA%`; delete that file to use the normal per-user folders.
 
 The MSI installs for all users and requires administrator privileges. It adds "Edit with PdfCraft"
-to the right-click menu of PDF files and "Create PDF with PdfCraft…" to the right-click menu of
-images (.png .jpg .jpeg .tif .tiff .gif .bmp .jp2 .j2k .jpx) in File Explorer (on Windows 11, under
-"Show more options"), without changing which app opens them by default. For unattended deployment
-without a desktop shortcut, run from an elevated terminal:
+to the right-click menu of PDF files in File Explorer (on Windows 11, under "Show more options"),
+without changing which app opens PDFs by default. For unattended deployment without a desktop
+shortcut, run from an elevated terminal:
 
 ```powershell
 msiexec /i "pdfcraft-<ver>-windows-x64.msi" /qn /norestart INSTALLDESKTOPSHORTCUT=0
 ```
 
-| Property | `=0` leaves out |
-|---|---|
-| `INSTALLDESKTOPSHORTCUT` | the all-users desktop shortcut |
-| `INSTALLPDFCONTEXTMENU` | "Edit with PdfCraft" on PDF files |
-| `INSTALLIMAGECONTEXTMENU` | "Create PDF with PdfCraft…" on images |
-
-All three are on for a first install. An upgrade keeps what the installed version has: a shortcut
-or menu entry that is there stays, and one that is missing (left out at install, or a desktop
-shortcut someone deleted) stays missing, so you don't need to pass them again. A value on the
-command line always wins: `=1` puts one back and `=0` removes it. Upgrading from a release that
-didn't have a menu yet (0.6.0 and earlier for the PDF menu, 0.2.1 and earlier for the image menu)
-adds it, as a first install would. Use the MSI for your architecture. Per-user installation
-overrides are not supported.
-
-**Pin the checksum, not just the version.** Release candidates of a version share its MSI version
-(MSI versions are numbers only, so 1.2.3-rc.1 and 1.2.3 are both 1.2.3), and the installer lets an
-MSI of the same version replace the installed one without asking. Two different `0.7.1` MSIs can't
-be told apart by version, so if your deployment tool checks the file, pin its SHA-256 from
-`SHA256SUMS.txt` (`Get-FileHash <file> -Algorithm SHA256`).
-
-**Signing identities.** The Windows MSIs and both executables are signed through Azure Trusted
-Signing with a certificate issued to `Learning Machines Inc` (Atlanta, Georgia, US). The macOS app
-and command-line tool are signed with the Developer ID `Learning Machines LLC (DJ6XS33FX8)` and
-notarized. The MSI's manufacturer, shown as the publisher in Installed apps, is
-`Learning Machines LLC`.
+Add `INSTALLPDFCONTEXTMENU=0` to leave out the right-click menu entry. Pass both on upgrades too,
+since each install applies its own choices. Use the MSI for your architecture. Per-user
+installation overrides are not supported.
 
 ### macOS
 
@@ -584,7 +549,6 @@ Forks and modified versions must remove them.
 <sub>Adobe, Photoshop, Illustrator, Premiere Pro, Lightroom, Acrobat, After Effects and InDesign are trademarks or registered trademarks of Adobe Inc. in the United States and/or other countries. PdfCraft is an independent, open-source project and is not affiliated with, sponsored by or endorsed by Adobe Inc.; these names are used only to describe the workflows it is compatible with.</sub>
 
 <p align="center">
-  <a href="https://getartcraft.com/"><img alt="ArtCraft" src="docs/brand/artcraft-mark.svg" width="28"></a><br>
   <sub>Made by the <a href="https://getartcraft.com/">ArtCraft</a> team and community.</sub>
 </p>
 

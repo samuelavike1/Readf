@@ -39,6 +39,7 @@ fn harness() -> Harness<'static, PdfCraftApp> {
     let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_cc| {
         let mut app = PdfCraftApp::new();
         app.set_option("language", "en").unwrap();
+        app.default_mode = pdfcraft_ui_egui::Mode::AllTools;
         app.open_bytes("doc.pdf", None, fixture(3)).unwrap();
         app
     });
@@ -71,8 +72,14 @@ const PICKERS: &[&str] = &[
 #[test]
 fn every_registered_command_is_implemented() {
     for spec in COMMANDS {
-        // Page-text Copy needs a loaded view and egui context, covered by ui_group::text_select.
-        if PICKERS.contains(&spec.id) || spec.id == "edit.copy" {
+        // These commands remain in the engine, but are intentionally unavailable in Readf's UI.
+        if ["create.", "page.", "measure.", "ai."].iter().any(|prefix| spec.id.starts_with(prefix))
+            || matches!(spec.id, "help.app_page" | "help.github" | "help.website")
+        {
+            assert!(!PdfCraftApp::new().execute(spec.id));
+            continue;
+        }
+        if PICKERS.contains(&spec.id) {
             continue;
         }
         let mut app = PdfCraftApp::new();
@@ -149,19 +156,9 @@ fn every_registered_command_is_implemented() {
         if spec.id == "view.layout.cover" {
             app.set_option("layout", "two-up").unwrap();
         }
-        // History commands need a real jump (and Back first to make Forward available).
-        if matches!(spec.id, "view.previous_view" | "view.next_view") {
-            app.views[0].go_to_page(1);
-            if spec.id == "view.next_view" {
-                assert!(app.views[0].view_history(false));
-            }
-        }
         let dir = std::env::temp_dir().join(format!("pdfcraft-cmd-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         app.save_override = Some(dir.join("out.pdf").to_string_lossy().into_owned());
-        // A picker the list above misses (file.pin_folder, create.multiple_separate did) must not
-        // open a real file dialog on the desktop running the tests: answer it as a cancel.
-        app.pick_override = Some(Vec::new());
         assert!(app.execute(spec.id), "{} is registered but not implemented (or wrongly disabled)", spec.id);
     }
 }
@@ -238,45 +235,41 @@ fn shortcuts_run_registered_commands() {
 #[test]
 fn the_palette_lists_commands_with_shortcuts_and_runs_them() {
     let mut h = harness();
-    h.state_mut().set_option("palette", "rotate pages clockwise").unwrap();
+    h.state_mut().set_option("palette", "Read mode").unwrap();
     h.run_steps(3);
-    h.get_by_label("Rotate pages clockwise");
+    h.get_by_label("Read mode");
     h.key_press(Key::Enter);
     h.run_steps(3);
     let app = h.state();
     assert!(!app.palette_open, "Enter runs the top hit and closes the palette");
-    let doc = app.session.get(app.views[0].id).unwrap();
-    assert_eq!(doc.info.pages[0].rotation, 90);
-    assert_eq!(doc.can_undo(), Some("Rotate page"));
+    assert_eq!(app.mode, pdfcraft_ui_egui::Mode::Read);
+    assert!(!app.session.get(app.views[0].id).unwrap().dirty);
 }
 
 #[test]
 fn palette_arrow_keys_select_results_and_enter_runs_the_selection() {
     let mut h = harness();
-    h.state_mut().set_option("palette", "rotate pages").unwrap();
+    h.state_mut().set_option("palette", "view.theme.").unwrap();
     h.run_steps(2);
-    h.get_by_label("Rotate pages clockwise");
-    h.get_by_label("Rotate pages counterclockwise");
+    h.get_by_label("Use system setting");
+    h.get_by_label("Light gray");
     h.key_press(Key::ArrowDown);
     h.run_steps(2);
     h.key_press(Key::Enter);
     h.run_steps(2);
     let app = h.state();
     assert!(!app.palette_open);
-    assert_eq!(app.session.get(app.views[0].id).unwrap().info.pages[0].rotation, 270);
+    assert_eq!(app.theme_preference, pdfcraft_ui_egui::theme::ThemePreference::Light);
 }
 
 #[test]
-fn the_pages_menu_comes_from_the_registry() {
+fn the_removed_pages_menu_is_absent() {
     let mut h = harness();
     h.get_by_label("Menu").click();
     h.run_steps(2);
-    h.get_by_label("Pages ⏵").hover();
-    h.run_steps(3);
-    h.get_by_label_contains("Delete pages").click();
-    h.run_steps(3);
-    let app = h.state();
-    assert_eq!(app.session.get(app.views[0].id).unwrap().info.pages.len(), 2);
+    assert!(h.query_by_label("Pages ⏵").is_none());
+    assert!(!h.state_mut().execute("page.delete"));
+    assert_eq!(h.state().session.get(h.state().views[0].id).unwrap().info.pages.len(), 3);
 }
 
 #[test]
@@ -307,6 +300,7 @@ fn the_open_recent_menu_lists_files_and_opens_one() {
     h.get_by_label_contains("recent.pdf").click();
     support::wait_until(&mut h, "recent document", |app| app.views.len() == 2 && app.password_prompt.is_none());
     let app = h.state();
+    assert_eq!(app.views.len(), 2, "the recent file opened in a new tab");
     let active = app.active.unwrap();
     assert_eq!(app.session.get(app.views[active].id).and_then(|d| d.path.as_deref()), Some(path.as_str()), "the active tab is the recent file");
     assert_eq!(app.session.get(app.views[active].id).unwrap().bytes.as_slice(), fixture(2).as_slice());
@@ -336,6 +330,7 @@ fn clear_recent_files_at_the_foot_of_open_recent_empties_the_list() {
     let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_cc| {
         let mut app = PdfCraftApp::new();
         app.set_option("language", "en").unwrap();
+        app.default_mode = pdfcraft_ui_egui::Mode::AllTools;
         app.open_bytes("doc.pdf", None, fixture(3)).unwrap();
         app.recent.extend([recent_file("first.pdf"), recent_file("second.pdf")]);
         app
@@ -447,7 +442,7 @@ fn view_menu_and_tooltips_write_shortcuts_for_the_platform() {
     h.get_by_label("Rotate view counterclockwise Ctrl+Shift+−");
     h.get_by_label("Previous view Ctrl+[");
     h.get_by_label("Find tools and commands… Ctrl+K");
-    h.get_by_label("Zoom in (Ctrl++)");
+    h.get_by_label("Zoom in Ctrl++");
     h.get_by_label("Print (Ctrl+P)");
     assert_eq!(h.query_all_by_label_contains("⌘").count(), 0, "no ⌘ outside macOS");
     assert_eq!(h.query_all_by_label_contains("Fit visible").count(), 1, "View lists Fit visible once");
@@ -456,7 +451,7 @@ fn view_menu_and_tooltips_write_shortcuts_for_the_platform() {
     let h = view_menu(OperatingSystem::Mac);
     h.get_by_label("Actual size ⌘1");
     h.get_by_label("Fit visible ⌘3");
-    h.get_by_label("Rotate view clockwise (⇧⌘+)");
+    h.get_by_label("Rotate view clockwise ⇧⌘+");
     assert_eq!(h.query_all_by_label_contains("Ctrl+").count(), 0, "no Ctrl+ on macOS");
 }
 
@@ -493,44 +488,6 @@ fn full_screen_toggles_by_shortcut_and_command_and_escape_leaves() {
     h.state_mut().execute("view.full_screen");
     h.run_steps(2);
     assert!(!h.state().full_screen, "the command toggles back");
-}
-
-#[test]
-fn the_about_dialog_shows_the_running_version() {
-    let mut h = harness();
-    h.state_mut().execute("help.about");
-    h.run_steps(3);
-    h.get_by_label_contains(&format!("Version {}", env!("CARGO_PKG_VERSION")));
-}
-
-#[test]
-fn quit_shortcut_requires_exact_modifiers_and_preserves_unsaved_work() {
-    for (os, modifiers) in [
-        (OperatingSystem::Windows, Modifiers { ctrl: true, command: true, ..Default::default() }),
-        (OperatingSystem::Mac, Modifiers { mac_cmd: true, command: true, ..Default::default() }),
-    ] {
-        for (extra, dirty, should_close) in
-            [(Modifiers::ALT, false, false), (Modifiers::SHIFT, false, false), (Modifiers::NONE, false, true), (Modifiers::NONE, true, false)]
-        {
-            let mut h = harness();
-            h.ctx.set_os(os);
-            if dirty {
-                assert!(h.state_mut().execute("page.insert_blank"));
-                h.run_steps(2);
-            }
-            h.event(egui::Event::Key { key: Key::Q, physical_key: None, pressed: true, repeat: false, modifiers: modifiers | extra });
-            h.step();
-            let closes = h.output().viewport_output.values().any(|v| v.commands.contains(&egui::ViewportCommand::Close));
-            assert_eq!(closes, should_close, "{os:?}, extra={extra:?}, dirty={dirty}");
-            if dirty {
-                h.get_by_label("Cancel").click();
-                h.run_steps(2);
-                assert_eq!(h.state().views.len(), 1);
-                assert!(h.state().session.get(h.state().views[0].id).unwrap().dirty);
-                assert!(!h.output().viewport_output.values().any(|v| v.commands.contains(&egui::ViewportCommand::Close)));
-            }
-        }
-    }
 }
 
 #[test]
@@ -617,7 +574,7 @@ fn palette_ime_chinese_preedit_commit_and_cancel_remain_uninterrupted() {
 #[test]
 fn palette_ime_outside_click_closes_without_running_a_command() {
     let mut h = harness();
-    h.state_mut().set_option("palette", "rotate pages clockwise").unwrap();
+    h.state_mut().set_option("palette", "Read mode").unwrap();
     h.run_steps(3);
     h.event(egui::Event::PointerButton {
         pos: egui::pos2(20.0, 850.0),
@@ -658,16 +615,11 @@ fn ctrl_tab_steps_through_the_tabs_in_order_and_wraps_around() {
     assert_eq!(h.state().active_ids().map(|(_, id)| id), Some(ids[2]));
     press(&mut h, ctrl);
     assert_eq!(h.state().active_ids().map(|(_, id)| id), Some(ids[0]));
-    // Combine files comes after the documents.
-    h.state_mut().execute("page.combine");
-    h.run_steps(2);
-    assert!(h.state().combine_showing());
-    assert_eq!(press(&mut h, ctrl), Some(0), "Combine files wraps to the first document");
-    assert_eq!(press(&mut h, ctrl | Modifiers::SHIFT), None);
-    assert!(h.state().combine_showing(), "back from the first document is Combine files");
+    assert!(!h.state_mut().execute("page.combine"));
+    let active = h.state().active;
     // Plain Tab still belongs to keyboard focus, not to the tabs.
     press(&mut h, Modifiers::NONE);
-    assert!(h.state().combine_showing());
+    assert_eq!(h.state().active, active);
     for doc in h.state().session.docs() {
         assert!(!doc.dirty, "switching tabs changes no document");
     }

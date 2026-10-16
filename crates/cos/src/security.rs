@@ -34,14 +34,12 @@ pub(crate) fn encrypt_dict(doc: &Document, d: &Dict) -> EncryptDict {
     }
     let v = int(b"V", 0);
     // V4: the key length comes from the standard crypt filter's /Length (bytes, or bits in
-    // some files); /Length on the dictionary is often a stale 40. A length that isn't
-    // positive means nothing and reads as if absent.
+    // some files); /Length on the dictionary is often a stale 40.
     let cf_len = d
         .get(b"CF")
         .map(|c| doc.resolve(c))
         .and_then(|c| c.as_dict().and_then(|c| c.get(b"StdCF").map(|f| doc.resolve(f))))
-        .and_then(|f| f.as_dict().and_then(|f| f.int(b"Length")))
-        .filter(|n| *n > 0);
+        .and_then(|f| f.as_dict().and_then(|f| f.int(b"Length")));
     let length_bits = match (v, cf_len) {
         (5.., _) => 256,
         (4, Some(n)) if n <= 32 => n * 8,
