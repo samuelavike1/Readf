@@ -509,6 +509,11 @@ pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         });
 }
 fn toolbar_file(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
+    let bookmarks_open =
+        app.right == Some(RightPanel::Bookmarks) && (app.mode == Mode::Read || app.docking.exposed(crate::docking::Panel::Inspector));
+    if icons::button(ui, "list-tree", 32.0, bookmarks_open, tl!("Toggle bookmarks")).clicked() {
+        app.choose_right_panel(if bookmarks_open { None } else { Some(RightPanel::Bookmarks) });
+    }
     main_menu(app, ui);
     if widgets::ghost_button(ui, "folder-open", tl!("Open file")).clicked() {
         app.open_dialog();

@@ -1206,6 +1206,16 @@ fn simple_reader_navigation_collapses_and_restores_the_selected_view() {
     assert_eq!(h.state().mode, Mode::Read);
     assert_eq!(h.state().right, Some(RightPanel::Pages));
     assert!(h.query_by_label("All tools").is_none());
+    let toggle = h.get_by_label("Toggle bookmarks").rect();
+    assert!(toggle.right() < h.get_by_label("Menu").rect().left());
+    h.get_by_label("Toggle bookmarks").click();
+    h.run_steps(3);
+    assert_eq!(h.state().right, Some(RightPanel::Bookmarks));
+    h.get_by_label("Alpha section");
+    h.get_by_label("Toggle bookmarks").click();
+    h.run_steps(3);
+    assert_eq!(h.state().right, None);
+    assert!(h.query_by_label("Alpha section").is_none());
     h.get_by_role_and_label(egui::accesskit::Role::Button, "Bookmarks").click();
     h.run_steps(3);
     h.get_by_label("Alpha section");
