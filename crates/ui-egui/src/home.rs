@@ -23,11 +23,10 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     let (rect, resp) = ui.allocate_exact_size(vec2(button_width, 60.0), Sense::click());
                     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tl!("Open file")));
                     let press = theme::Press::track(ui, &resp);
-                    let burgundy = egui::Color32::from_rgb(112, 24, 48);
                     ui.painter().rect_filled(
                         rect,
                         CornerRadius::same(8),
-                        press.fill(burgundy, egui::Color32::from_rgb(137, 35, 62), egui::Color32::from_rgb(88, 18, 38)),
+                        press.fill(t.accent, egui::Color32::from_rgb(185, 28, 28), egui::Color32::from_rgb(153, 27, 27)),
                     );
                     let label = ui.painter().layout_no_wrap(tl!("Open file").to_owned(), theme::medium(19.0), egui::Color32::WHITE);
                     let start = rect.center() - vec2((label.size().x + 40.0) * 0.5, 0.0);

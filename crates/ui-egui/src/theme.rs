@@ -1,5 +1,5 @@
 //! Design tokens and egui style (plan/acrobat/02-ui-ux.md §1: neutral chrome, white panels,
-//! one burgundy accent; Dark Gray keeps pages white). Every custom widget reads `Tokens::get`.
+//! one red accent; Dark Gray keeps pages white). Every custom widget reads `Tokens::get`.
 
 use std::sync::Arc;
 
@@ -85,12 +85,12 @@ impl Tokens {
                 icon: Color32::from_rgb(0x44, 0x44, 0x4B),
                 hover: Color32::from_rgb(0xF0, 0xF0, 0xF3),
                 pressed: Color32::from_rgb(0xE4, 0xE4, 0xE9),
-                selected: Color32::from_rgb(0xF2, 0xE2, 0xE7),
-                accent: Color32::from_rgb(0x70, 0x18, 0x30),
-                accent_text: Color32::from_rgb(0x70, 0x18, 0x30),
-                accent_soft: Color32::from_rgb(0xF5, 0xE8, 0xEC),
+                selected: Color32::from_rgb(0xFE, 0xCA, 0xCA),
+                accent: Color32::from_rgb(0xDC, 0x26, 0x26),
+                accent_text: Color32::from_rgb(0xB9, 0x1C, 0x1C),
+                accent_soft: Color32::from_rgb(0xFE, 0xE2, 0xE2),
                 field: Color32::from_rgb(0xFF, 0xFF, 0xFF),
-                badge_new: Color32::from_rgb(0x70, 0x18, 0x30),
+                badge_new: Color32::from_rgb(0xDC, 0x26, 0x26),
                 page_shadow: Color32::from_black_alpha(34),
                 radius: 6,
             },
@@ -109,12 +109,12 @@ impl Tokens {
                 icon: Color32::from_rgb(0xD4, 0xD4, 0xDA),
                 hover: Color32::from_rgb(0x34, 0x34, 0x3A),
                 pressed: Color32::from_rgb(0x3E, 0x3E, 0x45),
-                selected: Color32::from_rgb(0x52, 0x2D, 0x3A),
-                accent: Color32::from_rgb(0xB7, 0x59, 0x78),
-                accent_text: Color32::from_rgb(0xEF, 0xAB, 0xC0),
-                accent_soft: Color32::from_rgb(0x45, 0x2A, 0x34),
+                selected: Color32::from_rgb(0x50, 0x20, 0x20),
+                accent: Color32::from_rgb(0xDC, 0x26, 0x26),
+                accent_text: Color32::from_rgb(0xFC, 0xA5, 0xA5),
+                accent_soft: Color32::from_rgb(0x3B, 0x20, 0x20),
                 field: Color32::from_rgb(0x1E, 0x1E, 0x22),
-                badge_new: Color32::from_rgb(0xB7, 0x59, 0x78),
+                badge_new: Color32::from_rgb(0xDC, 0x26, 0x26),
                 page_shadow: Color32::from_black_alpha(120),
                 radius: 6,
             },
