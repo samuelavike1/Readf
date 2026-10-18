@@ -48,7 +48,8 @@ impl PageRange {
     }
 
     pub(crate) fn ui(&mut self, ui: &mut egui::Ui, count: usize) {
-        ui.horizontal(|ui| {
+        let narrow = ui.available_width() < 520.0;
+        let mut controls = |ui: &mut egui::Ui| {
             widgets::radio_value(ui, &mut self.all, true, tl!("All pages"));
             widgets::radio_value(ui, &mut self.all, false, tl!("Pages from"));
             ui.add_enabled(!self.all, egui::DragValue::new(&mut self.from).range(1..=count.max(1)));
@@ -68,7 +69,35 @@ impl PageRange {
                 ui.selectable_value(&mut self.subset, Subset::Even, tl!("Even pages only"));
                 ui.selectable_value(&mut self.subset, Subset::Odd, tl!("Odd pages only"));
             });
-        });
+        };
+        if narrow {
+            ui.vertical(|ui| {
+                widgets::radio_value(ui, &mut self.all, true, tl!("All pages"));
+                widgets::radio_value(ui, &mut self.all, false, tl!("Pages from"));
+                ui.horizontal(|ui| {
+                    ui.add_enabled(!self.all, egui::DragValue::new(&mut self.from).range(1..=count.max(1)));
+                    ui.label(tl!("to"));
+                    ui.add_enabled(!self.all, egui::DragValue::new(&mut self.to).range(1..=count.max(1)));
+                });
+                ui.horizontal(|ui| {
+                    ui.label(tl!("Subset"));
+                    let label = match self.subset {
+                        Subset::All => tl!("All pages in range"),
+                        Subset::Even => tl!("Even pages only"),
+                        Subset::Odd => tl!("Odd pages only"),
+                    };
+                    egui::ComboBox::from_id_salt("mark-subset").selected_text(label).show_ui(ui, |ui| {
+                        ui.selectable_value(&mut self.subset, Subset::All, tl!("All pages in range"));
+                        ui.selectable_value(&mut self.subset, Subset::Even, tl!("Even pages only"));
+                        ui.selectable_value(&mut self.subset, Subset::Odd, tl!("Odd pages only"));
+                    });
+                });
+            });
+        } else {
+            ui.horizontal(|ui| {
+                controls(ui);
+            });
+        }
     }
 }
 

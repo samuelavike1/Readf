@@ -13,6 +13,14 @@ const FIELD_MIN_HEIGHT: f32 = 30.0;
 const DIALOG_PAD_X: i8 = 20;
 const DIALOG_PAD_Y: i8 = 16;
 
+/// Width available to a modal without letting its frame run outside the viewport.
+/// Dialog bodies may still choose a narrower preferred width, but never force a
+/// horizontal overflow on a small window.
+pub fn dialog_width(ctx: &egui::Context, preferred: f32) -> f32 {
+    let available = (ctx.content_rect().width() - 48.0).max(240.0);
+    preferred.min(available)
+}
+
 fn dialog_frame(ctx: &egui::Context) -> egui::Frame {
     let t = Tokens::get(ctx);
     egui::Frame::new()
@@ -125,6 +133,7 @@ pub fn mode_tab(ui: &mut egui::Ui, label: &str, active: bool) -> Response {
         let r = Rect::from_min_max(rect.left_bottom() + vec2(10.0, -2.0), rect.right_bottom() - vec2(10.0, 0.0));
         ui.painter().rect_filled(r, CornerRadius { nw: 1, ne: 1, sw: 0, se: 0 }, t.accent);
     }
+    focus_outline(ui, &resp);
     theme::hand(resp)
 }
 
@@ -143,6 +152,7 @@ pub fn pill_button(ui: &mut egui::Ui, label: &str, primary: bool) -> Response {
     };
     ui.painter().rect(rect, CornerRadius::same(14), fill, stroke, egui::StrokeKind::Inside);
     ui.painter().text(rect.translate(press.offset()).center(), Align2::CENTER_CENTER, label, font, text);
+    focus_outline(ui, &resp);
     theme::hand(resp)
 }
 
@@ -208,7 +218,9 @@ pub fn search_box(ui: &mut egui::Ui, placeholder: &str, width: f32) -> Response 
 }
 
 pub fn menu_item(ui: &mut egui::Ui, label: &str, shortcut: &str) -> Response {
-    ui.add(egui::Button::new(label).shortcut_text(shortcut))
+    let response = ui.add_sized([ui.available_width(), 30.0], egui::Button::new(label).shortcut_text(shortcut));
+    focus_outline(ui, &response);
+    response
 }
 
 /// Corner radius of a checkbox's box. With the widgets' radius (`Tokens::radius`, 6) egui's 14 px
@@ -542,6 +554,8 @@ pub fn split_pill(ui: &mut egui::Ui, icon: &str, label: &str, more: &str) -> (Re
     crate::icons::paint(ui, Rect::from_min_size(body.min + vec2(12.0, 7.0), vec2(16.0, 16.0)), icon, 15.0, t.text);
     ui.painter().text(body.left_center() + vec2(34.0, 0.0), Align2::LEFT_CENTER, label, font, t.text);
     crate::icons::paint(ui, Rect::from_center_size(more_body.center(), vec2(14.0, 14.0)), "chevron-down", 13.0, t.text);
+    focus_outline(ui, &main);
+    focus_outline(ui, &arrow);
     (theme::hand(main).on_hover_text(label), theme::hand(arrow).on_hover_text(more))
 }
 
@@ -562,6 +576,7 @@ pub fn icon_pill(ui: &mut egui::Ui, icon: &str, label: &str, primary: bool) -> R
     let body = rect.translate(press.offset());
     crate::icons::paint(ui, Rect::from_min_size(body.min + vec2(12.0, 7.0), vec2(16.0, 16.0)), icon, 15.0, text);
     ui.painter().text(body.left_center() + vec2(34.0, 0.0), Align2::LEFT_CENTER, label, font, text);
+    focus_outline(ui, &resp);
     theme::hand(resp)
 }
 
@@ -569,6 +584,23 @@ pub fn icon_pill(ui: &mut egui::Ui, icon: &str, label: &str, primary: bool) -> R
 mod tests {
     use super::*;
     use egui::Pos2;
+
+    #[test]
+    fn dialog_width_stays_inside_small_viewports() {
+        let ctx = egui::Context::default();
+        let mut narrow = 0.0;
+        let mut wide = 0.0;
+        ctx.run_ui(egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(320.0, 480.0))), ..Default::default() }, |ui| {
+            narrow = dialog_width(ui.ctx(), 640.0);
+        })
+        .drop_without_applying_deltas();
+        ctx.run_ui(egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(900.0, 700.0))), ..Default::default() }, |ui| {
+            wide = dialog_width(ui.ctx(), 520.0);
+        })
+        .drop_without_applying_deltas();
+        assert_eq!(narrow, 272.0);
+        assert_eq!(wide, 520.0);
+    }
 
     #[test]
     fn search_placeholder_never_overlaps_the_shortcut() {

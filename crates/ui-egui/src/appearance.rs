@@ -125,11 +125,17 @@ pub fn preferences_section(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
     });
     ui.add_space(4.0);
     let light_active = app.theme == ThemeKind::Light;
-    ui.columns(2, |cols| {
-        let [light, dark] = cols else { return };
-        card(light, t, tl!("Light theme"), light_active, LIGHT_THEMES);
-        card(dark, t, tl!("Dark theme"), !light_active, DARK_THEMES);
-    });
+    if ui.available_width() < 700.0 {
+        card(ui, t, tl!("Light theme"), light_active, LIGHT_THEMES);
+        ui.add_space(12.0);
+        card(ui, t, tl!("Dark theme"), !light_active, DARK_THEMES);
+    } else {
+        ui.columns(2, |cols| {
+            let [light, dark] = cols else { return };
+            card(light, t, tl!("Light theme"), light_active, LIGHT_THEMES);
+            card(dark, t, tl!("Dark theme"), !light_active, DARK_THEMES);
+        });
+    }
 }
 
 #[cfg(test)]

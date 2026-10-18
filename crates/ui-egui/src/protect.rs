@@ -109,7 +109,8 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     ui.add_space(10.0);
     let field = |ui: &mut egui::Ui, label: &str, text: &mut String, id: &str| {
         let l = ui.label(tl!(label));
-        ui.add(crate::widgets::line(text).password(true).desired_width(290.0).id_salt(id)).labelled_by(l.id)
+        let width = ui.available_width().clamp(120.0, 290.0);
+        ui.add(crate::widgets::line(text).password(true).desired_width(width).id_salt(id)).labelled_by(l.id)
     };
     let r = field(ui, "Type Password", &mut d.password, "protect-pw");
     if r.changed() || !d.password.is_empty() {

@@ -74,12 +74,15 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let mut close = false;
     let mut next = dialog;
     let modal = widgets::show_modal(ctx, "dialog", |ui| {
-        ui.set_width(match dialog {
-            Dialog::Properties(_) => 640.0,
-            Dialog::Print => 820.0,
-            Dialog::FieldProps | Dialog::BulkFieldProps => 600.0,
-            _ => 520.0,
-        });
+        ui.set_width(widgets::dialog_width(
+            ctx,
+            match dialog {
+                Dialog::Properties(_) => 640.0,
+                Dialog::Print => 820.0,
+                Dialog::FieldProps | Dialog::BulkFieldProps => 600.0,
+                _ => 520.0,
+            },
+        ));
         match dialog {
             Dialog::CreateImages => {
                 let (go, cancel) = crate::create_ui::image_import_body(ui, app);
@@ -700,7 +703,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 return;
             }
             Dialog::CertificateViewer => {
-                ui.set_width(700.0);
+                ui.set_width(widgets::dialog_width(ctx, 700.0));
                 let trusted = app.session.trusted_certificates().to_vec();
                 let Some(v) = app.cert_viewer.as_mut() else {
                     close = true;
@@ -882,7 +885,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 return;
             }
             Dialog::ActionWizard => {
-                ui.set_width(620.0);
+                ui.set_width(widgets::dialog_width(ctx, 620.0));
                 close = crate::actions_ui::body(ui, app, &t);
                 return;
             }
@@ -893,12 +896,12 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 return;
             }
             Dialog::JsConsole => {
-                ui.set_width(640.0);
+                ui.set_width(widgets::dialog_width(ctx, 640.0));
                 close = crate::js_ui::console_body(ui, app, &t);
                 return;
             }
             Dialog::DocumentJs => {
-                ui.set_width(640.0);
+                ui.set_width(widgets::dialog_width(ctx, 640.0));
                 close = crate::js_ui::document_js_body(ui, app, &t);
                 return;
             }
@@ -927,7 +930,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 return;
             }
             Dialog::Marks(kind) => {
-                ui.set_width(720.0);
+                ui.set_width(widgets::dialog_width(ctx, 720.0));
                 let (apply, cancel) = crate::marks_ui::body(ui, app, &t, kind);
                 marks_now = apply;
                 close = apply || cancel;

@@ -51,7 +51,8 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: E
     );
     ui.add_space(8.0);
     if kind == ExportKind::Image {
-        ui.horizontal(|ui| {
+        let narrow = ui.available_width() < 480.0;
+        let resolution = |ui: &mut egui::Ui, d: &mut ExportDraft| {
             ui.label(tl!("Resolution"));
             egui::ComboBox::from_id_salt("export-dpi")
                 .selected_text(crate::i18n::fmt(tl!("{dpi} pixels/inch"), &[("dpi", &d.dpi.to_string())]))
@@ -60,8 +61,8 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: E
                         ui.selectable_value(&mut d.dpi, dpi, crate::i18n::fmt(tl!("{dpi} pixels/inch"), &[("dpi", &dpi.to_string())]));
                     }
                 });
-        });
-        ui.horizontal(|ui| {
+        };
+        let format = |ui: &mut egui::Ui, d: &mut ExportDraft| {
             ui.label(tl!("Format"));
             let mut quality = match d.format {
                 ImageFormat::Jpeg { quality } => quality,
@@ -81,7 +82,16 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: E
                     d.format = ImageFormat::Jpeg { quality };
                 }
             }
-        });
+        };
+        if narrow {
+            ui.vertical(|ui| {
+                resolution(ui, d);
+                format(ui, d);
+            });
+        } else {
+            ui.horizontal(|ui| resolution(ui, d));
+            ui.horizontal(|ui| format(ui, d));
+        }
         ui.label(
             egui::RichText::new(crate::i18n::fmt(tl!("One {f} file per page, named after the document."), &[("f", d.format.label())]))
                 .small()
