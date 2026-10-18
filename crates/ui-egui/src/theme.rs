@@ -89,7 +89,7 @@ impl Tokens {
                 accent: Color32::from_rgb(0xDC, 0x26, 0x26),
                 accent_text: Color32::from_rgb(0xB9, 0x1C, 0x1C),
                 accent_soft: Color32::from_rgb(0xFE, 0xE2, 0xE2),
-                field: Color32::from_rgb(0xFF, 0xFF, 0xFF),
+                field: Color32::from_rgb(0xFA, 0xFA, 0xFB),
                 badge_new: Color32::from_rgb(0xDC, 0x26, 0x26),
                 page_shadow: Color32::from_black_alpha(34),
                 radius: 6,

@@ -649,7 +649,7 @@ pub(crate) fn body(
     thumb: &mut dyn FnMut(usize) -> Option<egui::TextureId>,
 ) -> (bool, bool) {
     ui.set_width(820.0);
-    ui.label(egui::RichText::new(tl!("Print")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_title(ui, tl!("Print"));
     ui.add_space(8.0);
     let settings = d.settings(sizes.len(), labels);
     let sheets = settings.as_ref().ok().and_then(|s| print::layout(sizes, s).ok()).unwrap_or_default();

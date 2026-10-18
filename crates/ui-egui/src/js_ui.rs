@@ -161,7 +161,7 @@ fn buttons(ui: &mut egui::Ui, primary: &str, others: &[&str]) -> Option<String> 
 
 /// The JavaScript console. Returns `true` to close.
 pub(crate) fn console_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
-    ui.label(egui::RichText::new(tl!("JavaScript Console")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_title(ui, tl!("JavaScript Console"));
     ui.add_space(6.0);
     if !app.session.javascript() {
         ui.label(egui::RichText::new(tl!("JavaScript is turned off (Preferences ▸ JavaScript).")).small().color(t.text_muted));
@@ -202,7 +202,7 @@ pub(crate) fn console_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
 
 /// Document JavaScripts: list, edit, add and delete. Returns `true` to close.
 pub(crate) fn document_js_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
-    ui.label(egui::RichText::new(tl!("Document JavaScripts")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_title(ui, tl!("Document JavaScripts"));
     ui.add_space(6.0);
     let scripts = app.active_ids().and_then(|(_, id)| app.session.get(id)).map(|d| d.document_scripts()).unwrap_or_default();
     let mut edit: Option<Edit> = None;
@@ -260,11 +260,17 @@ fn reading_mode_label(mode: &str) -> &'static str {
     }
 }
 
+/// Fixed label column for preference rows. Keeping controls on one vertical edge makes the
+/// settings page scan as a form instead of a series of unrelated horizontal groups.
+fn preference_label(ui: &mut egui::Ui, label: &str) {
+    widgets::form_label(ui, label, 150.0);
+}
+
 /// Preferences: interface language and size, appearance, identity and JavaScript. Returns `true` to close.
 pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
-    ui.label(egui::RichText::new(tl!("Preferences")).font(theme::semibold(18.0)));
-    ui.horizontal(|ui| {
-        ui.label(tl!("Interface language"));
+    widgets::dialog_title(ui, tl!("Preferences"));
+    ui.horizontal_wrapped(|ui| {
+        preference_label(ui, tl!("Interface language"));
         let selected = crate::i18n::Lang::from_code(&app.language).map_or(tl!("Auto"), crate::i18n::Lang::name);
         let before = app.language.clone();
         egui::ComboBox::from_id_salt("interface-language").selected_text(selected).show_ui(ui, |ui| {
@@ -282,9 +288,9 @@ pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
             crate::i18n::set_current(crate::i18n::Lang::from_pref(&app.language));
         }
     });
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         use crate::ui_scale;
-        ui.label(tl!("Interface size"));
+        preference_label(ui, tl!("Interface size"));
         // Auto shows the size it draws at: the display's scale times the system's text scale.
         let native = ui.ctx().native_pixels_per_point().unwrap_or(1.0);
         let auto_percent = ui_scale::percent(ui_scale::drawn(None, app.system_text_scale, native));
@@ -308,8 +314,8 @@ pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
             .small()
             .color(t.text_muted),
     );
-    ui.horizontal(|ui| {
-        ui.label(tl!("Tools panel side"));
+    ui.horizontal_wrapped(|ui| {
+        preference_label(ui, tl!("Tools panel side"));
         let right = app.docking.tools_on_right();
         if ui.selectable_label(!right, tl!("Left")).clicked()
             && let Err(error) = app.docking.set_tools_on_right(false)
@@ -326,8 +332,8 @@ pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
     crate::appearance::preferences_section(ui, app, t);
     ui.add_space(8.0);
     ui.label(egui::RichText::new(tl!("Documents and view")).font(theme::semibold(13.0)));
-    ui.horizontal(|ui| {
-        ui.label(tl!("Default workspace mode"));
+    ui.horizontal_wrapped(|ui| {
+        preference_label(ui, tl!("Default workspace mode"));
         for (mode, label) in [
             (crate::Mode::AllTools, "All tools"),
             (crate::Mode::Read, "Read"),
@@ -344,16 +350,16 @@ pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
             .color(t.text_muted),
     );
     let defaults = &mut app.view_defaults;
-    ui.horizontal(|ui| {
-        ui.label(tl!("Default page display"));
+    ui.horizontal_wrapped(|ui| {
+        preference_label(ui, tl!("Default page display"));
         for l in crate::canvas::PageLayout::ORDER {
             widgets::radio_value(ui, &mut defaults.layout, l, tl!(l.label()));
         }
         ui.add(widgets::checkbox(&mut defaults.continuous, tl!("Continuous scrolling")));
     });
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         use crate::canvas::Fit;
-        ui.label(tl!("Default zoom"));
+        preference_label(ui, tl!("Default zoom"));
         widgets::radio_value(ui, &mut defaults.fit, Fit::Width, tl!("Fit to width"));
         widgets::radio_value(ui, &mut defaults.fit, Fit::Page, tl!("Zoom to page level"));
         widgets::radio_value(ui, &mut defaults.fit, Fit::None, tl!("Custom"));
@@ -368,8 +374,8 @@ pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
             .small()
             .color(t.text_muted),
     );
-    ui.horizontal(|ui| {
-        ui.label(tl!("Units"));
+    ui.horizontal_wrapped(|ui| {
+        preference_label(ui, tl!("Units"));
         for u in crate::units::Unit::ALL {
             widgets::radio_value(ui, &mut app.units, u, u.label());
         }
@@ -381,16 +387,16 @@ pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
     // The web build has no files on disk to watch.
     #[cfg(not(target_arch = "wasm32"))]
     ui.add(widgets::checkbox(&mut app.reload_changed_files, tl!("Reload documents when their files change on disk")));
-    ui.horizontal(|ui| {
-        ui.label(tl!("Mouse wheel scroll speed"));
+    ui.horizontal_wrapped(|ui| {
+        preference_label(ui, tl!("Mouse wheel scroll speed"));
         for speed in crate::scroll_speed::ScrollSpeed::ALL {
             widgets::radio_value(ui, &mut app.scroll_speed, speed, tl_ctx!("scroll speed", speed.label()));
         }
     });
     // Whether anything animates, the wheel's scrolling and zooming included; left alone it
     // follows the system's animation setting.
-    ui.horizontal(|ui| {
-        ui.label(tl!("Animation effects"));
+    ui.horizontal_wrapped(|ui| {
+        preference_label(ui, tl!("Animation effects"));
         for choice in crate::motion::AnimationEffects::ALL {
             widgets::radio_value(ui, &mut app.animation_effects, choice, tl_ctx!("animation effects", choice.label()));
         }
@@ -405,8 +411,8 @@ pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
     // remapped while rendering, and the page clears to the background colour. The preference
     // is app-wide: every open document follows it, and documents open with it.
     ui.label(egui::RichText::new(tl!("Reading colours")).font(theme::semibold(13.0)));
-    ui.horizontal(|ui| {
-        ui.label(tl!("Replace document colours"));
+    ui.horizontal_wrapped(|ui| {
+        preference_label(ui, tl!("Replace document colours"));
         let mode = app.reading_colors.mode_name();
         egui::ComboBox::from_id_salt("reading-colors").selected_text(tl!(reading_mode_label(mode))).show_ui(ui, |ui| {
             for (m, label) in [
@@ -442,7 +448,7 @@ pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
     if app.reading_colors.params.is_some() {
         let mut changed = false;
         if let Some(params) = app.reading_colors.params.as_mut() {
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 let text = ui.label(tl!("Text"));
                 changed |= ui.color_edit_button_srgb(&mut params.text).labelled_by(text.id).changed();
                 let background = ui.label(tl!("Page background"));
@@ -463,7 +469,7 @@ pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
     ui.add_space(8.0);
     // Identity: the author of new comments (Acrobat: Preferences ▸ Identity).
     ui.label(egui::RichText::new(tl!("Identity")).font(theme::semibold(13.0)));
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         let label = ui.label(tl!("Name on new comments"));
         ui.add(crate::widgets::line(&mut app.comment_prefs.author).desired_width(220.0).char_limit(crate::MAX_AUTHOR_CHARS)).labelled_by(label.id);
     });

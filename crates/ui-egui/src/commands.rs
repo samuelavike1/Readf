@@ -737,20 +737,20 @@ pub(crate) fn registry_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui, menu: &str
         // Clear Recent Files at the foot empties the list (#430).
         if spec.id == "file.open_recent" {
             if app.recent.is_empty() {
-                ui.add_enabled(false, egui::Button::new(label));
+                menu_row(ui, false, &label, "");
                 continue;
             }
             let mut open: Option<String> = None;
             let mut clear = false;
             ui.menu_button(label, |ui| {
                 for r in &app.recent {
-                    if ui.button(&r.name).on_hover_text(&r.path).clicked() {
+                    if menu_row(ui, true, &r.name, "").on_hover_text(&r.path).clicked() {
                         open = Some(r.path.clone());
                         ui.close();
                     }
                 }
                 ui.separator();
-                if ui.button(tl!("Clear Recent Files")).clicked() {
+                if menu_row(ui, true, tl!("Clear Recent Files"), "").clicked() {
                     clear = true;
                     ui.close();
                 }
@@ -767,13 +767,18 @@ pub(crate) fn registry_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui, menu: &str
         }
         let shortcut = spec.shortcut.map(|s| shortcut_label(ui.ctx(), s)).unwrap_or_default();
         let enabled = app.command_enabled(spec);
-        let resp = ui.add_enabled(enabled, egui::Button::new(label).shortcut_text(shortcut));
+        let resp = menu_row(ui, enabled, &label, &shortcut);
         if resp.clicked() {
             app.execute(spec.id);
             ui.close();
         }
     }
-    let _ = widgets::menu_item;
+}
+
+/// A consistently sized command row shared with the rest of the application menus. Empty
+/// shortcuts are handled by the widget helper without adding whitespace to the accessible name.
+pub(crate) fn menu_row(ui: &mut egui::Ui, enabled: bool, label: &str, shortcut: &str) -> egui::Response {
+    widgets::menu_item_enabled(ui, enabled, label, shortcut)
 }
 
 #[cfg(test)]

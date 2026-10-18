@@ -577,6 +577,21 @@ fn toolbar_action(ui: &mut egui::Ui, icon: &str, label: &str, selected: bool, co
     response
 }
 
+/// Full-width icon row used by the Tools popup so icon and text actions share one visual rhythm.
+fn tool_menu_row(ui: &mut egui::Ui, icon: &str, label: &str) -> egui::Response {
+    let t = Tokens::get(ui.ctx());
+    let height = 30.0;
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click());
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
+    let press = theme::Press::track(ui, &response);
+    press.wash(ui, rect, 6, false);
+    let body = rect.translate(press.offset());
+    icons::paint(ui, Rect::from_min_size(body.min + vec2(8.0, 6.0), vec2(18.0, 18.0)), icon, 17.0, t.icon);
+    ui.painter().text(body.left_center() + vec2(34.0, 0.0), Align2::LEFT_CENTER, label, theme::medium(13.0), t.text);
+    widgets::focus_outline(ui, &response);
+    theme::hand(response)
+}
+
 fn toolbar_actions(app: &mut PdfCraftApp, ui: &mut egui::Ui, compact: bool) {
     ui.add_enabled_ui(app.active.is_some(), |ui| {
         if toolbar_action(
@@ -595,35 +610,42 @@ fn toolbar_actions(app: &mut PdfCraftApp, ui: &mut egui::Ui, compact: bool) {
         }
     });
     ui.menu_button(tl!("Tools"), |ui| {
-        ui.set_min_width(240.0);
-        if widgets::ghost_button(ui, "mouse-pointer-2", tl!("Select (V)")).clicked() {
-            app.quick_tool = crate::QuickTool::Select;
-            ui.close();
-        }
-        if widgets::ghost_button(ui, "hand", tl!("Hand (H)")).clicked() {
-            app.quick_tool = crate::QuickTool::Hand;
-            ui.close();
-        }
-        if ui.button(tl!("Read")).clicked() {
-            app.switch_mode(Mode::Read, true);
-            ui.close();
-        }
-        if ui.button(tl!("All tools")).clicked() {
-            app.switch_mode(Mode::AllTools, true);
-            ui.close();
-        }
-        ui.separator();
-        for group in pdfcraft_engine::catalog::TOOL_GROUPS {
-            if widgets::ghost_button(ui, group.icon, tl!(group.label)).clicked() {
-                app.select_tool(group.id);
+        let width = (ui.ctx().content_rect().width() - 48.0).clamp(240.0, 320.0);
+        ui.set_width(width);
+        // Stay within egui's popup height and reserve a visible scroll track when
+        // the command list is taller, including the search action at its end.
+        ui.spacing_mut().scroll.floating = false;
+        let height = (ui.ctx().content_rect().height() - 140.0).clamp(200.0, 360.0);
+        egui::ScrollArea::vertical().max_height(height).show(ui, |ui| {
+            if tool_menu_row(ui, "mouse-pointer-2", tl!("Select (V)")).clicked() {
+                app.quick_tool = crate::QuickTool::Select;
                 ui.close();
             }
-        }
-        ui.separator();
-        if widgets::search_box(ui, tl!("Find tools and commands"), 230.0).clicked() {
-            app.palette_open = true;
-            ui.close();
-        }
+            if tool_menu_row(ui, "hand", tl!("Hand (H)")).clicked() {
+                app.quick_tool = crate::QuickTool::Hand;
+                ui.close();
+            }
+            if crate::commands::menu_row(ui, true, tl!("Read"), "").clicked() {
+                app.switch_mode(Mode::Read, true);
+                ui.close();
+            }
+            if crate::commands::menu_row(ui, true, tl!("All tools"), "").clicked() {
+                app.switch_mode(Mode::AllTools, true);
+                ui.close();
+            }
+            ui.separator();
+            for group in pdfcraft_engine::catalog::TOOL_GROUPS {
+                if tool_menu_row(ui, group.icon, tl!(group.label)).clicked() {
+                    app.select_tool(group.id);
+                    ui.close();
+                }
+            }
+            ui.separator();
+            if widgets::search_box(ui, tl!("Find tools and commands"), 230.0).clicked() {
+                app.palette_open = true;
+                ui.close();
+            }
+        });
     });
     ui.add_enabled_ui(app.active.is_some(), |ui| {
         let tip = crate::commands::command_tip(ui.ctx(), tl!("Print ({key})"), "print.dialog");
@@ -651,42 +673,44 @@ fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui, compact: bool) {
                 let key = |s| crate::commands::shortcut_label(&ctx, s);
                 use crate::commands::{ACTUAL_SIZE, FIT_WIDTH, NEXT_VIEW, PAGE_LEVEL, PREV_VIEW, ROTATE_CCW, ROTATE_CW, ZOOM_IN, ZOOM_OUT};
                 ui.label(egui::RichText::new(tl!("Zoom")).color(t.text_faint).small());
-                if widgets::menu_item(ui, tl!("Actual size"), &key(ACTUAL_SIZE)).clicked() {
+                if crate::commands::menu_row(ui, true, tl!("Actual size"), &key(ACTUAL_SIZE)).clicked() {
                     v.set_zoom(1.0);
                 }
-                if widgets::menu_item(ui, tl!("Zoom to page level"), &key(PAGE_LEVEL)).clicked() {
+                if crate::commands::menu_row(ui, true, tl!("Zoom to page level"), &key(PAGE_LEVEL)).clicked() {
                     v.fit = Fit::Page;
                 }
-                if widgets::menu_item(ui, tl!("Fit to width"), &key(FIT_WIDTH)).clicked() {
+                if crate::commands::menu_row(ui, true, tl!("Fit to width"), &key(FIT_WIDTH)).clicked() {
                     v.fit = Fit::Width;
                 }
-                if widgets::menu_item(ui, tl!("Fit to height"), "").clicked() {
+                if crate::commands::menu_row(ui, true, tl!("Fit to height"), "").clicked() {
                     v.fit = Fit::Height;
                     v.goto = Some((v.current, 0.0));
                 }
-                if widgets::menu_item(ui, tl!("Fit visible"), &crate::commands::command_shortcut_label(&ctx, "view.fit_visible")).clicked() {
+                if crate::commands::menu_row(ui, true, tl!("Fit visible"), &crate::commands::command_shortcut_label(&ctx, "view.fit_visible"))
+                    .clicked()
+                {
                     ui.close();
                     app.execute("view.fit_visible");
                     return;
                 }
-                if widgets::menu_item(ui, tl!("Zoom in"), &key(ZOOM_IN)).clicked() {
+                if crate::commands::menu_row(ui, true, tl!("Zoom in"), &key(ZOOM_IN)).clicked() {
                     v.zoom_step(true);
                 }
-                if widgets::menu_item(ui, tl!("Zoom out"), &key(ZOOM_OUT)).clicked() {
+                if crate::commands::menu_row(ui, true, tl!("Zoom out"), &key(ZOOM_OUT)).clicked() {
                     v.zoom_step(false);
                 }
-                if widgets::menu_item(ui, tl!("Rotate view clockwise"), &key(ROTATE_CW)).clicked() {
+                if crate::commands::menu_row(ui, true, tl!("Rotate view clockwise"), &key(ROTATE_CW)).clicked() {
                     v.rotate_view(true);
                 }
-                if widgets::menu_item(ui, tl!("Rotate view counterclockwise"), &key(ROTATE_CCW)).clicked() {
+                if crate::commands::menu_row(ui, true, tl!("Rotate view counterclockwise"), &key(ROTATE_CCW)).clicked() {
                     v.rotate_view(false);
                 }
                 ui.separator();
                 ui.label(egui::RichText::new(tl!("Page navigation")).color(t.text_faint).small());
-                if widgets::menu_item_enabled(ui, !v.back.is_empty(), tl!("Previous view"), &key(PREV_VIEW)).clicked() {
+                if crate::commands::menu_row(ui, !v.back.is_empty(), tl!("Previous view"), &key(PREV_VIEW)).clicked() {
                     v.view_history(false);
                 }
-                if widgets::menu_item_enabled(ui, !v.forward.is_empty(), tl!("Next view"), &key(NEXT_VIEW)).clicked() {
+                if crate::commands::menu_row(ui, !v.forward.is_empty(), tl!("Next view"), &key(NEXT_VIEW)).clicked() {
                     v.view_history(true);
                 }
                 ui.separator();
@@ -792,27 +816,27 @@ fn page_display_menu(ui: &mut egui::Ui, view: &DocView) -> Option<&'static str> 
 fn rail_view_menu(ui: &mut egui::Ui, view: &mut DocView) -> Option<&'static str> {
     let mut picked = None;
     for (id, label) in [("view.fit_width_scrolling", "Fit to width scrolling"), ("view.fit_one_page", "Fit one full page")] {
-        if widgets::menu_item(ui, tl!(label), "").clicked() {
+        if crate::commands::menu_row(ui, true, tl!(label), "").clicked() {
             picked = Some(id);
         }
     }
     ui.separator();
-    if widgets::menu_item(ui, tl!("Actual size"), "").clicked() {
+    if crate::commands::menu_row(ui, true, tl!("Actual size"), "").clicked() {
         view.set_zoom(1.0);
         ui.close();
     }
-    if widgets::menu_item(ui, tl!("Zoom to page level"), "").clicked() {
+    if crate::commands::menu_row(ui, true, tl!("Zoom to page level"), "").clicked() {
         view.set_fit(Fit::Page);
         ui.close();
     }
-    if widgets::menu_item(ui, tl!("Fit visible"), "").clicked() {
+    if crate::commands::menu_row(ui, true, tl!("Fit visible"), "").clicked() {
         picked = Some("view.fit_visible");
     }
     ui.separator();
     picked = page_display_menu(ui, view).or(picked);
     ui.separator();
     for (id, label) in [("view.read_mode", "Read mode"), ("view.full_screen", "Full screen mode")] {
-        if widgets::menu_item(ui, tl!(label), "").clicked() {
+        if crate::commands::menu_row(ui, true, tl!(label), "").clicked() {
             picked = Some(id);
         }
     }

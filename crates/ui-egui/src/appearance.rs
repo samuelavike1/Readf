@@ -89,7 +89,7 @@ fn card(ui: &mut egui::Ui, t: &Tokens, title: &str, active: bool, themes: &[(The
         .fill(t.card)
         .stroke(egui::Stroke::new(1.0, if active { t.accent } else { t.border }))
         .corner_radius(6.0)
-        .inner_margin(egui::Margin::same(8))
+        .inner_margin(egui::Margin::same(10))
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
@@ -111,9 +111,10 @@ fn card(ui: &mut egui::Ui, t: &Tokens, title: &str, active: bool, themes: &[(The
 
 /// The Appearance section of Preferences.
 pub fn preferences_section(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
-    ui.label(RichText::new(tl!("Appearance")).font(theme::semibold(13.0)));
+    ui.label(RichText::new(tl!("Appearance")).font(theme::subtitle()).color(t.text));
+    ui.add_space(2.0);
     ui.horizontal(|ui| {
-        ui.label(tl!("Appearance mode"));
+        widgets::form_label(ui, tl!("Appearance mode"), 150.0);
         egui::ComboBox::from_id_salt("appearance-mode").selected_text(tl!(mode_label(app.theme_preference))).show_ui(ui, |ui| {
             for preference in [ThemePreference::System, ThemePreference::Light, ThemePreference::Dark] {
                 if ui.selectable_label(app.theme_preference == preference, tl!(mode_label(preference))).clicked() {
@@ -125,7 +126,9 @@ pub fn preferences_section(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
     });
     ui.add_space(4.0);
     let light_active = app.theme == ThemeKind::Light;
-    if ui.available_width() < 700.0 {
+    // Two compact cards remain readable down to roughly 500 px of content. Below that,
+    // stacking avoids squeezing the previews and keeps the radio labels tappable.
+    if ui.available_width() < 500.0 {
         card(ui, t, tl!("Light theme"), light_active, LIGHT_THEMES);
         ui.add_space(12.0);
         card(ui, t, tl!("Dark theme"), !light_active, DARK_THEMES);

@@ -73,7 +73,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     let d = &mut app.ocr_draft;
     d.to = d.to.clamp(1, pages);
     d.from = d.from.clamp(1, d.to);
-    ui.label(egui::RichText::new(tl!("Recognize Text")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_title(ui, tl!("Recognize Text"));
     ui.add_space(8.0);
     let group = |ui: &mut egui::Ui, title: &str, body: &mut dyn FnMut(&mut egui::Ui)| {
         ui.label(egui::RichText::new(tl!(title)).font(theme::semibold(13.0)));

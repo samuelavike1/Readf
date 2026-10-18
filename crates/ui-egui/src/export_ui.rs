@@ -41,19 +41,18 @@ pub type ExportStatus = Arc<Mutex<Option<(usize, usize, Option<String>)>>>;
 pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: ExportKind) -> (bool, bool) {
     let count = app.active_ids().and_then(|(_, id)| app.session.get(id)).map(|d| d.info.pages.len()).unwrap_or(0);
     let d = &mut app.export_draft;
-    ui.label(
-        egui::RichText::new(match kind {
+    widgets::dialog_title(
+        ui,
+        match kind {
             ExportKind::Image => tl!("Export to Image"),
             ExportKind::Text => tl!("Export to Text"),
             ExportKind::AllImages => tl!("Export All Images"),
-        })
-        .font(theme::semibold(18.0)),
+        },
     );
-    ui.add_space(8.0);
     if kind == ExportKind::Image {
         let narrow = ui.available_width() < 480.0;
         let resolution = |ui: &mut egui::Ui, d: &mut ExportDraft| {
-            ui.label(tl!("Resolution"));
+            widgets::form_label(ui, tl!("Resolution"), 100.0);
             egui::ComboBox::from_id_salt("export-dpi")
                 .selected_text(crate::i18n::fmt(tl!("{dpi} pixels/inch"), &[("dpi", &d.dpi.to_string())]))
                 .show_ui(ui, |ui| {
@@ -63,7 +62,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: E
                 });
         };
         let format = |ui: &mut egui::Ui, d: &mut ExportDraft| {
-            ui.label(tl!("Format"));
+            widgets::form_label(ui, tl!("Format"), 100.0);
             let mut quality = match d.format {
                 ImageFormat::Jpeg { quality } => quality,
                 _ => 85,
@@ -122,7 +121,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: E
     d.range.ui(ui, count);
     ui.add_space(12.0);
     let (mut apply, mut cancel) = (false, false);
-    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+    ui.allocate_ui_with_layout(egui::vec2(ui.available_width(), 34.0), Layout::right_to_left(Align::Center), |ui| {
         let ok = !d.range.pages(count).is_empty();
         if ui.add_enabled_ui(ok, |ui| widgets::pill_button(ui, tl!("Export"), true)).inner.clicked() {
             apply = true;

@@ -80,6 +80,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 Dialog::Properties(_) => 640.0,
                 Dialog::Print => 820.0,
                 Dialog::FieldProps | Dialog::BulkFieldProps => 600.0,
+                Dialog::Preferences => 700.0,
                 _ => 520.0,
             },
         ));
@@ -91,8 +92,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 return;
             }
             Dialog::Properties(tab) => {
-                ui.label(egui::RichText::new(tl!("Document Properties")).font(theme::semibold(18.0)));
-                ui.add_space(8.0);
+                widgets::dialog_title(ui, tl!("Document Properties"));
                 ui.horizontal_wrapped(|ui| {
                     for (tb, label) in [
                         (PropsTab::Description, tl!("Description")),
@@ -117,15 +117,16 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     ui.label(if v.is_empty() { egui::RichText::new("—").color(t.text_faint) } else { egui::RichText::new(v) });
                     ui.end_row();
                 };
+                let field_width = (ui.available_width() - 158.0).max(80.0);
                 egui::ScrollArea::vertical().max_height(460.0).auto_shrink([false, true]).show(ui, |ui| {
-                    egui::Grid::new("props").num_columns(2).spacing([18.0, 8.0]).min_col_width(140.0).show(ui, |ui| match tab {
+                    egui::Grid::new("props").num_columns(2).spacing([18.0, 12.0]).min_col_width(100.0).show(ui, |ui| match tab {
                         PropsTab::Description => {
                             row(ui, "File", crate::bidi::visual(&doc.name).into_owned());
                             match app.props_draft.as_mut() {
                                 Some((_, draft)) if doc.allows_modification() => {
                                     for (k, v) in INFO_KEYS.iter().zip(draft.iter_mut()) {
                                         let l = ui.label(egui::RichText::new(tl!(k)).color(t.text_muted));
-                                        ui.add(widgets::line(v).desired_width(420.0).background_color(t.field).id_salt(("info", *k)))
+                                        ui.add(widgets::line(v).desired_width(field_width).background_color(t.field).id_salt(("info", *k)))
                                             .labelled_by(l.id);
                                         ui.end_row();
                                     }
@@ -907,8 +908,19 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
             }
             Dialog::Preferences => {
                 // The settings outgrow a short window: scroll them rather than run off the screen.
-                let max = (ui.ctx().content_rect().height() - 120.0).max(200.0);
-                close = egui::ScrollArea::vertical().max_height(max).show(ui, |ui| crate::js_ui::preferences_body(ui, app, &t)).inner;
+                ui.spacing_mut().scroll.floating = false;
+                let max = (ui.ctx().content_rect().height() - 100.0).clamp(200.0, 640.0);
+                close = egui::ScrollArea::vertical()
+                    .id_salt("preferences-scroll")
+                    .min_scrolled_height(max)
+                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+                    .auto_shrink([false, true])
+                    .max_height(max)
+                    .show(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        crate::js_ui::preferences_body(ui, app, &t)
+                    })
+                    .inner;
                 return;
             }
             Dialog::RecognizeText => {

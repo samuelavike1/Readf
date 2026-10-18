@@ -77,7 +77,7 @@ pub(crate) fn options_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
     let o = &mut app.a11y_options;
     o.to = o.to.clamp(1, pages);
     o.from = o.from.clamp(1, o.to);
-    ui.label(egui::RichText::new(tl!("Accessibility Checker Options")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_title(ui, tl!("Accessibility Checker Options"));
     ui.add_space(8.0);
     let group = |ui: &mut egui::Ui, title: &str, body: &mut dyn FnMut(&mut egui::Ui)| {
         ui.label(egui::RichText::new(tl!(title)).font(theme::semibold(13.0)));
@@ -110,16 +110,19 @@ pub(crate) fn options_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
             });
         });
         ui.add_space(4.0);
-        for r in Rule::ALL.into_iter().filter(|r| r.category() == o.category) {
-            let mut checked = o.rules.contains(&r);
-            if ui.add(widgets::checkbox(&mut checked, tl!(r.description()))).changed() {
-                if checked {
-                    o.rules.insert(r);
-                } else {
-                    o.rules.remove(&r);
+        let max_height = (ui.ctx().content_rect().height() - 460.0).clamp(120.0, 260.0);
+        egui::ScrollArea::vertical().id_salt("a11y-rules").max_height(max_height).show(ui, |ui| {
+            for r in Rule::ALL.into_iter().filter(|r| r.category() == o.category) {
+                let mut checked = o.rules.contains(&r);
+                if ui.add(widgets::checkbox(&mut checked, tl!(r.description()))).changed() {
+                    if checked {
+                        o.rules.insert(r);
+                    } else {
+                        o.rules.remove(&r);
+                    }
                 }
             }
-        }
+        });
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             if ui.button(tl!("Select All")).clicked() {
@@ -542,7 +545,7 @@ pub(crate) fn alt_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> 
     let ctx = ui.ctx().clone();
     let doc = app.alt_draft.doc.and_then(|id| app.session.get(id));
     let d = &mut app.alt_draft;
-    ui.label(egui::RichText::new(tl!("Set Alternate Text")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_title(ui, tl!("Set Alternate Text"));
     ui.add_space(8.0);
     let n = d.figures.len();
     if n == 0 {

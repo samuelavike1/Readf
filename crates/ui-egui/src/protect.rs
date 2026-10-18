@@ -74,42 +74,21 @@ pub fn strength(pw: &str) -> (&'static str, Color32) {
     }
 }
 
-/// A radio button drawn like Acrobat's: an outlined circle, filled blue with a white dot when on.
-fn radio(ui: &mut egui::Ui, t: &Tokens, on: bool, label: &str) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(egui::vec2(220.0, 26.0), egui::Sense::click());
-    let c = egui::pos2(rect.left() + 9.0, rect.center().y);
-    if on {
-        ui.painter().circle_filled(c, 8.0, t.accent);
-        ui.painter().circle_filled(c, 3.0, Color32::WHITE);
-    } else {
-        ui.painter().circle_stroke(c, 7.5, egui::Stroke::new(1.5, t.text_muted));
-    }
-    ui.painter().text(egui::pos2(rect.left() + 26.0, rect.center().y), egui::Align2::LEFT_CENTER, tl!(label), theme::regular(14.0), t.text);
-    let info = tl!(label).to_string();
-    resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::RadioButton, true, on, info.clone()));
-    resp.on_hover_cursor(egui::CursorIcon::PointingHand)
-}
-
 /// Draw the dialog body; returns (apply, cancel).
 pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (bool, bool) {
     use pdfcraft_engine::Algorithm as A;
     let d = &mut app.protect_draft;
-    ui.label(egui::RichText::new(tl!("Protect Using Password")).font(theme::semibold(18.0)));
-    ui.add_space(4.0);
-    ui.separator();
-    ui.add_space(6.0);
+    widgets::dialog_title(ui, tl!("Protect Using Password"));
     ui.label(tl!("Requires user to enter a password for:"));
     ui.add_space(4.0);
-    if radio(ui, t, d.viewing, "Viewing").clicked() {
-        d.viewing = true;
-    }
-    if radio(ui, t, !d.viewing, "Editing").clicked() {
-        d.viewing = false;
-    }
+    ui.horizontal_wrapped(|ui| {
+        widgets::radio_value(ui, &mut d.viewing, true, tl!("Viewing"));
+        widgets::radio_value(ui, &mut d.viewing, false, tl!("Editing"));
+    });
     ui.add_space(10.0);
     let field = |ui: &mut egui::Ui, label: &str, text: &mut String, id: &str| {
         let l = ui.label(tl!(label));
-        let width = ui.available_width().clamp(120.0, 290.0);
+        let width = ui.available_width();
         ui.add(crate::widgets::line(text).password(true).desired_width(width).id_salt(id)).labelled_by(l.id)
     };
     let r = field(ui, "Type Password", &mut d.password, "protect-pw");
@@ -214,7 +193,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     );
     ui.add_space(12.0);
     let (mut apply, mut cancel) = (false, false);
-    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+    ui.allocate_ui_with_layout(egui::vec2(ui.available_width(), 34.0), Layout::right_to_left(Align::Center), |ui| {
         let ok = d.problem().is_none();
         if ui.add_enabled_ui(ok, |ui| widgets::pill_button(ui, tl!("Apply"), true)).inner.clicked() {
             apply = true;

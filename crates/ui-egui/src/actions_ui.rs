@@ -234,7 +234,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
     if app.wizard.editing.is_some() {
         return edit_body(ui, app, t);
     }
-    ui.label(egui::RichText::new(tl!("Action Wizard")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_title(ui, tl!("Action Wizard"));
     ui.add_space(8.0);
     let actions = app.all_actions();
     if app.wizard.selected.as_ref().is_none_or(|s| !actions.iter().any(|a| &a.name == s)) {
@@ -303,7 +303,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
 
 fn edit_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     let Some((original, a)) = app.wizard.editing.as_mut() else { return false };
-    ui.label(egui::RichText::new(if original.is_some() { tl!("Edit Action") } else { tl!("New Action") }).font(theme::semibold(18.0)));
+    crate::widgets::dialog_title(ui, if original.is_some() { tl!("Edit Action") } else { tl!("New Action") });
     ui.add_space(8.0);
     egui::Grid::new("action-edit").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
         ui.label(tl!("Action name:"));

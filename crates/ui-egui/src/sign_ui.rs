@@ -572,7 +572,7 @@ pub(crate) fn dialog(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bo
 }
 
 fn title(ui: &mut egui::Ui, text: &str) {
-    ui.label(egui::RichText::new(tl!(text)).font(theme::semibold(18.0)));
+    crate::widgets::dialog_title(ui, tl!(text));
     ui.add_space(4.0);
     ui.separator();
     ui.add_space(8.0);

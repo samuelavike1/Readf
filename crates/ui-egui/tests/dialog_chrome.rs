@@ -65,6 +65,24 @@ fn document_properties_fields_are_tall_and_inset() {
 }
 
 #[test]
+fn protection_dialog_shrinks_after_preferences() {
+    let mut h = Harness::builder().with_size(egui::vec2(1100.0, 800.0)).build_eframe(|_cc| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.open_bytes("doc.pdf", None, fixture()).unwrap();
+        app.set_option("dialog", "preferences").unwrap();
+        app
+    });
+    h.run_steps(5);
+    h.state_mut().set_option("dialog", "protect").unwrap();
+    h.run_steps(5);
+    let card = card(&h, "dialog");
+    assert!(card.height() < 500.0, "protection retained the previous dialog's height: {card:?}");
+    let cancel = h.get_by_label("Cancel").rect();
+    assert!(card.bottom() - cancel.bottom() < 40.0, "actions left blank space in {card:?}: {cancel:?}");
+}
+
+#[test]
 fn password_prompt_field_is_tall_and_inset() {
     let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_cc| {
         let mut app = PdfCraftApp::new();

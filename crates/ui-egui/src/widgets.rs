@@ -8,10 +8,10 @@ use crate::{PdfCraftApp, icons};
 /// Horizontal and vertical inset of a single-line field.
 const FIELD_MARGIN: egui::Margin = egui::Margin::symmetric(10, 6);
 /// Outer height of a single-line field, including its inset.
-const FIELD_MIN_HEIGHT: f32 = 30.0;
+const FIELD_MIN_HEIGHT: f32 = 34.0;
 /// Padding inside every modal.
 const DIALOG_PAD_X: i8 = 20;
-const DIALOG_PAD_Y: i8 = 16;
+const DIALOG_PAD_Y: i8 = 20;
 
 /// Width available to a modal without letting its frame run outside the viewport.
 /// Dialog bodies may still choose a narrower preferred width, but never force a
@@ -49,7 +49,7 @@ pub fn show_modal<R>(ctx: &egui::Context, id: &str, content: impl FnOnce(&mut eg
     })
 }
 
-/// Outlined controls at a shared 30-point height, with a focus stroke and 4-point corners.
+/// Outlined controls at a shared 34-point height, with a focus stroke and 6-point corners.
 ///
 /// Dialog fills match the theme's field colour, so radio buttons, check boxes, combo boxes
 /// and number fields need the border or they disappear into the card.
@@ -62,10 +62,25 @@ pub fn begin_dialog(ui: &mut egui::Ui) {
     w.inactive.bg_fill = t.hover;
     w.hovered.bg_stroke = Stroke::new(1.0, t.text_muted);
     for state in [&mut w.inactive, &mut w.hovered, &mut w.active, &mut w.open] {
-        state.corner_radius = CornerRadius::same(4);
+        state.corner_radius = CornerRadius::same(6);
     }
     ui.visuals_mut().selection.stroke = Stroke::new(1.5, t.accent);
     ui.spacing_mut().interact_size.y = FIELD_MIN_HEIGHT;
+    ui.spacing_mut().item_spacing.y = theme::SPACE_SM;
+}
+
+/// Shared title rhythm for dialog bodies, leaving their actions in the content flow.
+pub fn dialog_title(ui: &mut egui::Ui, title: &str) {
+    ui.label(egui::RichText::new(title).font(theme::title()));
+    ui.add_space(theme::SPACE_SM);
+}
+
+/// Left-aligned label column with the same vertical centre as its form control.
+pub fn form_label(ui: &mut egui::Ui, label: &str, width: f32) {
+    ui.allocate_ui_with_layout(vec2(width, FIELD_MIN_HEIGHT), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+        ui.set_min_width(width);
+        ui.label(label);
+    });
 }
 
 /// A single-line field tall enough to read and to click.
@@ -137,12 +152,12 @@ pub fn mode_tab(ui: &mut egui::Ui, label: &str, active: bool) -> Response {
     theme::hand(resp)
 }
 
-/// Rounded pill button; `primary` fills with the accent.
+/// Compact rounded action button; `primary` fills with the accent.
 pub fn pill_button(ui: &mut egui::Ui, label: &str, primary: bool) -> Response {
     let t = Tokens::get(ui.ctx());
-    let font = theme::medium(theme::TEXT_LABEL);
+    let font = theme::medium(theme::TEXT_BODY);
     let w = ui.fonts_mut(|f| f.layout_no_wrap(label.to_owned(), font.clone(), t.text).size().x);
-    let (rect, resp) = ui.allocate_exact_size(vec2(w + 26.0, 28.0), Sense::click());
+    let (rect, resp) = ui.allocate_exact_size(vec2((w + 28.0).max(64.0), 34.0), Sense::click());
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
     let press = theme::Press::track(ui, &resp);
     let (fill, stroke, text) = if primary {
@@ -150,7 +165,7 @@ pub fn pill_button(ui: &mut egui::Ui, label: &str, primary: bool) -> Response {
     } else {
         (press.fill(t.card, t.hover, t.pressed), Stroke::new(1.0, t.border), t.text)
     };
-    ui.painter().rect(rect, CornerRadius::same(14), fill, stroke, egui::StrokeKind::Inside);
+    ui.painter().rect(rect, CornerRadius::same(6), fill, stroke, egui::StrokeKind::Inside);
     ui.painter().text(rect.translate(press.offset()).center(), Align2::CENTER_CENTER, label, font, text);
     focus_outline(ui, &resp);
     theme::hand(resp)
@@ -197,7 +212,7 @@ pub fn search_box(ui: &mut egui::Ui, placeholder: &str, width: f32) -> Response 
     let press = theme::Press::track(ui, &resp);
     let fill = press.fill(t.field, t.hover, t.pressed);
     let edge = t.border.lerp_to_gamma(t.text_muted, press.hover * 0.35);
-    ui.painter().rect(rect, CornerRadius::same(16), fill, Stroke::new(1.0, edge), egui::StrokeKind::Inside);
+    ui.painter().rect(rect, CornerRadius::same(6), fill, Stroke::new(1.0, edge), egui::StrokeKind::Inside);
     icons::paint(ui, Rect::from_min_size(rect.min + vec2(10.0, 8.0), vec2(16.0, 16.0)), "search", 15.0, t.text_muted);
     let shortcut = crate::commands::command_shortcut_label(ui.ctx(), "view.palette");
     let shortcut = ui.painter().layout_no_wrap(shortcut, theme::caption(), t.text_faint);
@@ -217,14 +232,15 @@ pub fn search_box(ui: &mut egui::Ui, placeholder: &str, width: f32) -> Response 
     if elided { resp.on_hover_text(placeholder) } else { resp }
 }
 
-pub fn menu_item(ui: &mut egui::Ui, label: &str, shortcut: &str) -> Response {
-    menu_item_enabled(ui, true, label, shortcut)
-}
-
 /// A full-width menu row with the same sizing and focus treatment when disabled.
 pub fn menu_item_enabled(ui: &mut egui::Ui, enabled: bool, label: &str, shortcut: &str) -> Response {
-    let width = ui.available_width();
-    let button = egui::Button::new(label).shortcut_text(shortcut).min_size(vec2(width, 30.0));
+    // A popup starts with a generous unconstrained width; do not turn that into
+    // a permanent minimum just because its rows should share a hit target.
+    let width = ui.available_width().min(320.0);
+    let mut button = egui::Button::new(label).min_size(vec2(width, 32.0));
+    if !shortcut.is_empty() {
+        button = button.shortcut_text(shortcut);
+    }
     let response = ui.add_enabled(enabled, button);
     focus_outline(ui, &response);
     response
@@ -543,10 +559,10 @@ pub fn split_pill(ui: &mut egui::Ui, icon: &str, label: &str, more: &str) -> (Re
     let arrow = ui.interact(more_rect, ui.id().with(("split-pill-more", label)), Sense::click());
     main.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
     arrow.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), more));
-    let radius = CornerRadius::same(15);
+    let radius = CornerRadius::same(6);
     ui.painter().rect(rect, radius, t.card, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-    let left = CornerRadius { nw: 15, sw: 15, ne: 0, se: 0 };
-    let right = CornerRadius { nw: 0, sw: 0, ne: 15, se: 15 };
+    let left = CornerRadius { nw: 6, sw: 6, ne: 0, se: 0 };
+    let right = CornerRadius { nw: 0, sw: 0, ne: 6, se: 6 };
     let main_press = theme::Press::track(ui, &main);
     let arrow_press = theme::Press::track(ui, &arrow);
     for (r, press, corners) in [(main_rect, main_press, left), (more_rect, arrow_press, right)] {
@@ -579,7 +595,7 @@ pub fn icon_pill(ui: &mut egui::Ui, icon: &str, label: &str, primary: bool) -> R
     } else {
         (press.fill(t.card, t.hover, t.pressed), Stroke::new(1.0, t.border), t.text)
     };
-    ui.painter().rect(rect, CornerRadius::same(15), fill, stroke, egui::StrokeKind::Inside);
+    ui.painter().rect(rect, CornerRadius::same(6), fill, stroke, egui::StrokeKind::Inside);
     let body = rect.translate(press.offset());
     crate::icons::paint(ui, Rect::from_min_size(body.min + vec2(12.0, 7.0), vec2(16.0, 16.0)), icon, 15.0, text);
     ui.painter().text(body.left_center() + vec2(34.0, 0.0), Align2::LEFT_CENTER, label, font, text);

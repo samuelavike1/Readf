@@ -155,7 +155,7 @@ fn discard_box(ui: &mut egui::Ui, list: &mut Vec<Hidden>, h: Hidden, label: &str
 
 /// Draw the dialog; returns (ok, cancel).
 pub(crate) fn body(ui: &mut egui::Ui, d: &mut OptimizeDraft, t: &Tokens) -> (bool, bool) {
-    ui.label(egui::RichText::new(tl!("PDF Optimizer")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_title(ui, tl!("PDF Optimizer"));
     ui.add_space(6.0);
     ui.horizontal_wrapped(|ui| {
         for (tab, label) in [

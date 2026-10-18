@@ -65,7 +65,9 @@ fn checking_fixing_skipping_and_reporting() {
     });
     h.run_steps(4);
     assert!(h.state_mut().execute("a11y.check"));
-    h.run_steps(2);
+    // The scroll viewport and centred modal need another layout pass before clicking.
+    // Use bounded steps: the PDF renderer may still be requesting repaints.
+    h.run_steps(5);
     h.get_by_label("Accessibility Checker Options");
     h.get_by_label_contains("31 of 32");
     h.get_by_label("Document title is showing in title bar");
@@ -153,7 +155,7 @@ fn a_rule_skipped_in_one_document_is_not_skipped_in_another() {
     assert_eq!(tagged(&h), (Status::Skipped, 0));
     h.state_mut().a11y_options.show_dialog = true;
     assert!(h.state_mut().execute("a11y.check"));
-    h.run_steps(2);
+    h.run_steps(5);
     h.get_by_label("Start Checking").click();
     h.run_steps(3);
     assert_eq!(tagged(&h), (Status::Failed, 2));
