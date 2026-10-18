@@ -683,10 +683,10 @@ fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui, compact: bool) {
                 }
                 ui.separator();
                 ui.label(egui::RichText::new(tl!("Page navigation")).color(t.text_faint).small());
-                if ui.add_enabled(!v.back.is_empty(), egui::Button::new(tl!("Previous view")).shortcut_text(key(PREV_VIEW))).clicked() {
+                if widgets::menu_item_enabled(ui, !v.back.is_empty(), tl!("Previous view"), &key(PREV_VIEW)).clicked() {
                     v.view_history(false);
                 }
-                if ui.add_enabled(!v.forward.is_empty(), egui::Button::new(tl!("Next view")).shortcut_text(key(NEXT_VIEW))).clicked() {
+                if widgets::menu_item_enabled(ui, !v.forward.is_empty(), tl!("Next view"), &key(NEXT_VIEW)).clicked() {
                     v.view_history(true);
                 }
                 ui.separator();
@@ -792,27 +792,27 @@ fn page_display_menu(ui: &mut egui::Ui, view: &DocView) -> Option<&'static str> 
 fn rail_view_menu(ui: &mut egui::Ui, view: &mut DocView) -> Option<&'static str> {
     let mut picked = None;
     for (id, label) in [("view.fit_width_scrolling", "Fit to width scrolling"), ("view.fit_one_page", "Fit one full page")] {
-        if ui.button(tl!(label)).clicked() {
+        if widgets::menu_item(ui, tl!(label), "").clicked() {
             picked = Some(id);
         }
     }
     ui.separator();
-    if ui.button(tl!("Actual size")).clicked() {
+    if widgets::menu_item(ui, tl!("Actual size"), "").clicked() {
         view.set_zoom(1.0);
         ui.close();
     }
-    if ui.button(tl!("Zoom to page level")).clicked() {
+    if widgets::menu_item(ui, tl!("Zoom to page level"), "").clicked() {
         view.set_fit(Fit::Page);
         ui.close();
     }
-    if ui.button(tl!("Fit visible")).clicked() {
+    if widgets::menu_item(ui, tl!("Fit visible"), "").clicked() {
         picked = Some("view.fit_visible");
     }
     ui.separator();
     picked = page_display_menu(ui, view).or(picked);
     ui.separator();
     for (id, label) in [("view.read_mode", "Read mode"), ("view.full_screen", "Full screen mode")] {
-        if ui.button(tl!(label)).clicked() {
+        if widgets::menu_item(ui, tl!(label), "").clicked() {
             picked = Some(id);
         }
     }

@@ -376,6 +376,47 @@ pub fn semibold(size: f32) -> FontId {
     FontId::new(size, FontFamily::Name("semibold".into()))
 }
 
+// Keep interface text on a small, intentional scale.  Call sites that need a special
+// measurement (for example a page thumbnail) can still use `regular`/`semibold`, but
+// ordinary chrome should use these named steps so the hierarchy remains consistent.
+pub const TEXT_CAPTION: f32 = 11.0;
+pub const TEXT_LABEL: f32 = 12.0;
+pub const TEXT_BODY: f32 = 13.0;
+pub const TEXT_SUBTITLE: f32 = 15.0;
+pub const TEXT_TITLE: f32 = 17.0;
+pub const TEXT_DISPLAY: f32 = 24.0;
+
+/// Shared chrome spacing. Keep these values in one place when adding a new surface.
+pub const SPACE_XS: f32 = 4.0;
+pub const SPACE_SM: f32 = 8.0;
+pub const SPACE_MD: f32 = 12.0;
+pub const SPACE_LG: f32 = 16.0;
+pub const SPACE_XL: f32 = 24.0;
+
+pub fn caption() -> FontId {
+    regular(TEXT_CAPTION)
+}
+
+pub fn label() -> FontId {
+    regular(TEXT_LABEL)
+}
+
+pub fn body() -> FontId {
+    regular(TEXT_BODY)
+}
+
+pub fn subtitle() -> FontId {
+    semibold(TEXT_SUBTITLE)
+}
+
+pub fn title() -> FontId {
+    semibold(TEXT_TITLE)
+}
+
+pub fn display() -> FontId {
+    semibold(TEXT_DISPLAY)
+}
+
 pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
     // Keep the native window inherited. A concrete egui theme pins macOS's
     // NSWindow appearance and prevents winit from delivering ThemeChanged.
@@ -424,17 +465,17 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
     }
     ctx.set_visuals(v);
     ctx.global_style_mut(|s| {
-        s.spacing.item_spacing = egui::vec2(8.0, 6.0);
+        s.spacing.item_spacing = egui::vec2(SPACE_SM, 6.0);
         s.spacing.button_padding = egui::vec2(10.0, 5.0);
         s.spacing.menu_margin = egui::Margin::same(6);
         s.spacing.scroll.bar_width = 8.0;
         s.spacing.scroll.floating = true;
         s.spacing.scroll.floating_width = 3.0;
         s.spacing.scroll.foreground_color = true;
-        s.text_styles.insert(egui::TextStyle::Body, regular(13.0));
-        s.text_styles.insert(egui::TextStyle::Button, regular(13.0));
-        s.text_styles.insert(egui::TextStyle::Small, regular(11.0));
-        s.text_styles.insert(egui::TextStyle::Heading, semibold(17.0));
+        s.text_styles.insert(egui::TextStyle::Body, body());
+        s.text_styles.insert(egui::TextStyle::Button, body());
+        s.text_styles.insert(egui::TextStyle::Small, caption());
+        s.text_styles.insert(egui::TextStyle::Heading, title());
         s.interaction.tooltip_delay = 0.35;
     });
     let style = ctx.global_style();

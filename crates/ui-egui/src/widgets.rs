@@ -114,7 +114,7 @@ pub(crate) fn paint_left(ui: &egui::Ui, pos: egui::Pos2, text: &str, font: egui:
 /// A mode-bar tab: text with an underline when active.
 pub fn mode_tab(ui: &mut egui::Ui, label: &str, active: bool) -> Response {
     let t = Tokens::get(ui.ctx());
-    let font = if active { theme::semibold(13.5) } else { theme::medium(13.5) };
+    let font = if active { theme::semibold(theme::TEXT_BODY) } else { theme::medium(theme::TEXT_BODY) };
     let w = ui.fonts_mut(|f| f.layout_no_wrap(label.to_owned(), font.clone(), t.text).size().x);
     let (rect, resp) = ui.allocate_exact_size(vec2(w + 22.0, 48.0), Sense::click());
     resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, ui.is_enabled(), active, label));
@@ -140,7 +140,7 @@ pub fn mode_tab(ui: &mut egui::Ui, label: &str, active: bool) -> Response {
 /// Rounded pill button; `primary` fills with the accent.
 pub fn pill_button(ui: &mut egui::Ui, label: &str, primary: bool) -> Response {
     let t = Tokens::get(ui.ctx());
-    let font = theme::medium(12.5);
+    let font = theme::medium(theme::TEXT_LABEL);
     let w = ui.fonts_mut(|f| f.layout_no_wrap(label.to_owned(), font.clone(), t.text).size().x);
     let (rect, resp) = ui.allocate_exact_size(vec2(w + 26.0, 28.0), Sense::click());
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
@@ -200,7 +200,7 @@ pub fn search_box(ui: &mut egui::Ui, placeholder: &str, width: f32) -> Response 
     ui.painter().rect(rect, CornerRadius::same(16), fill, Stroke::new(1.0, edge), egui::StrokeKind::Inside);
     icons::paint(ui, Rect::from_min_size(rect.min + vec2(10.0, 8.0), vec2(16.0, 16.0)), "search", 15.0, t.text_muted);
     let shortcut = crate::commands::command_shortcut_label(ui.ctx(), "view.palette");
-    let shortcut = ui.painter().layout_no_wrap(shortcut, theme::regular(11.5), t.text_faint);
+    let shortcut = ui.painter().layout_no_wrap(shortcut, theme::caption(), t.text_faint);
     let shortcut_pos = rect.right_center() - vec2(12.0 + shortcut.size().x, shortcut.size().y * 0.5);
     // Reserve the measured shortcut width in every language; long translations are elided
     // within the remaining space rather than painted underneath the shortcut.
@@ -218,7 +218,14 @@ pub fn search_box(ui: &mut egui::Ui, placeholder: &str, width: f32) -> Response 
 }
 
 pub fn menu_item(ui: &mut egui::Ui, label: &str, shortcut: &str) -> Response {
-    let response = ui.add_sized([ui.available_width(), 30.0], egui::Button::new(label).shortcut_text(shortcut));
+    menu_item_enabled(ui, true, label, shortcut)
+}
+
+/// A full-width menu row with the same sizing and focus treatment when disabled.
+pub fn menu_item_enabled(ui: &mut egui::Ui, enabled: bool, label: &str, shortcut: &str) -> Response {
+    let width = ui.available_width();
+    let button = egui::Button::new(label).shortcut_text(shortcut).min_size(vec2(width, 30.0));
+    let response = ui.add_enabled(enabled, button);
     focus_outline(ui, &response);
     response
 }
@@ -297,7 +304,7 @@ pub fn section_title(ui: &mut egui::Ui, text: &str) {
     let t = Tokens::get(ui.ctx());
     ui.add_space(10.0);
     // Section titles across every panel go through here, so one translation point covers them.
-    ui.label(egui::RichText::new(tl!(text).to_uppercase()).font(theme::semibold(10.5)).color(t.text_faint).extra_letter_spacing(0.6));
+    ui.label(egui::RichText::new(tl!(text).to_uppercase()).font(theme::semibold(theme::TEXT_CAPTION)).color(t.text_faint).extra_letter_spacing(0.6));
     ui.add_space(2.0);
 }
 
@@ -513,7 +520,7 @@ pub fn progress_notice(app: &PdfCraftApp, ctx: &egui::Context) -> bool {
                 if p.cancellable {
                     ui.add_space(4.0);
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let b = egui::Button::new(egui::RichText::new(tl!("Cancel")).font(theme::medium(12.5)).color(text)).frame(false);
+                        let b = egui::Button::new(egui::RichText::new(tl!("Cancel")).font(theme::medium(theme::TEXT_LABEL)).color(text)).frame(false);
                         cancel = ui.add(b).clicked();
                     });
                 }
@@ -528,7 +535,7 @@ pub fn progress_notice(app: &PdfCraftApp, ctx: &egui::Context) -> bool {
 /// main button's response and the ▾'s (give it to `egui::Popup::menu`).
 pub fn split_pill(ui: &mut egui::Ui, icon: &str, label: &str, more: &str) -> (Response, Response) {
     let t = Tokens::get(ui.ctx());
-    let font = theme::medium(12.5);
+    let font = theme::medium(theme::TEXT_LABEL);
     let w = ui.fonts_mut(|f| f.layout_no_wrap(label.to_owned(), font.clone(), t.text).size().x);
     let (rect, _) = ui.allocate_exact_size(vec2(w + 46.0 + 28.0, 30.0), Sense::hover());
     let (main_rect, more_rect) = rect.split_left_right_at_x(rect.right() - 28.0);
@@ -562,7 +569,7 @@ pub fn split_pill(ui: &mut egui::Ui, icon: &str, label: &str, more: &str) -> (Re
 /// A pill button with an icon (primary = filled accent).
 pub fn icon_pill(ui: &mut egui::Ui, icon: &str, label: &str, primary: bool) -> Response {
     let t = Tokens::get(ui.ctx());
-    let font = theme::medium(12.5);
+    let font = theme::medium(theme::TEXT_LABEL);
     let w = ui.fonts_mut(|f| f.layout_no_wrap(label.to_owned(), font.clone(), t.text).size().x);
     let (rect, resp) = ui.allocate_exact_size(vec2(w + 46.0, 30.0), Sense::click());
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
