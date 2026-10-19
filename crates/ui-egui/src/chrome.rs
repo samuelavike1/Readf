@@ -518,11 +518,6 @@ fn toolbar_file(app: &mut PdfCraftApp, ui: &mut egui::Ui, _compact: bool) {
         }
         app.choose_right_panel(if open { None } else { Some(remembered) });
     }
-    ui.add_enabled_ui(app.active.is_some(), |ui| {
-        if icons::button(ui, "search", 32.0, false, tl!("Find…")).clicked() {
-            app.run_command("edit.find");
-        }
-    });
 }
 fn toolbar_navigation(app: &mut PdfCraftApp, ui: &mut egui::Ui, _compact: bool) {
     if let Some((index, id)) = app.active_ids() {

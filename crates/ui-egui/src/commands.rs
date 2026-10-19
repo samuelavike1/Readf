@@ -19,6 +19,12 @@ pub(crate) fn command_visible(id: &str) -> bool {
         && !["create.", "page.", "measure.", "ai."].iter().any(|prefix| id.starts_with(prefix))
 }
 
+/// Commands listed in menus and the palette. Find remains available to its shortcut and
+/// automation, but has no clickable entry point in the interface.
+pub(crate) fn command_listed(id: &str) -> bool {
+    command_visible(id) && id != "edit.find"
+}
+
 /// Keys the document view handles itself (`canvas::shortcuts`), for the View menu, tooltips and
 /// Help ▸ Keyboard shortcuts. Keep them in step with the bindings there.
 pub(crate) const ACTUAL_SIZE: Shortcut = Shortcut::cmd("1");
@@ -219,6 +225,9 @@ impl PdfCraftApp {
             "edit.redo" => self.redo(),
             "edit.find" => {
                 if let Some(i) = active {
+                    if self.right == Some(RightPanel::Search) {
+                        self.choose_right_panel(None);
+                    }
                     self.views[i].open_find();
                 }
             }
@@ -729,7 +738,7 @@ fn tab_after(current: Option<usize>, count: usize, forward: bool) -> Option<usiz
 
 /// Render a top-level menu's registered commands (with live labels, shortcuts and enablement).
 pub(crate) fn registry_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui, menu: &str) {
-    for spec in commands::menu(menu).filter(|c| command_visible(c.id)) {
+    for spec in commands::menu(menu).filter(|c| command_listed(c.id)) {
         let label = commands::current_label(spec, &app.session, app.active_ids().map(|(_, id)| id));
         let label = crate::i18n::menu_label(spec.id, &label);
         // Open Recent is a submenu of the live recent list, not one action: disabled while the

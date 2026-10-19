@@ -1,5 +1,7 @@
 # PdfCraft roadmap
 
+- **2026-10-19 (M3, shortcut Find popup):** Removed the toolbar Find icon and its menu/palette entry while retaining Ctrl/Cmd+F and automation. Replaced the long search strip with a compact popup: full-height input, close, match count, navigation and optional filters. Closing the Search panel retains its query without opening Find; Escape closes options before the popup. All 78 focused tests pass; native light/dark and narrow-window views, Clippy, wasm, asset and layering checks passed.
+
 - **2026-10-19 (M3, title-row Menu):** Replaced the Home icon with the main Menu in the title row and removed the duplicate toolbar Menu. Document tabs and window controls keep their positions; the welcome screen remains available when no document is selected.
 
 - **2026-10-19 (M3, integrated Windows title bar):** The Home/tab row now replaces the Windows title bar by default, with rectangular minimize, maximize/restore and close controls at the right edge. Existing native drag/resize commands and unsaved-close protection are retained; Use system title bar remains available in Preferences. Regression coverage includes narrow tab overflow, double-click maximize/restore, window commands and cancelling a dirty close. Native light/dark and caption actions checked; the Windows hover Snap Layout flyout is not implemented.

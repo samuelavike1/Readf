@@ -526,10 +526,15 @@ fn advanced_search_lists_results_with_context() {
     h.run_steps(3);
     let v = &h.state().views[i];
     assert_eq!((v.find.as_ref().unwrap().current, v.current), (Some(1), 1));
-    // Closing the panel moves the search to the find bar.
+    // Closing the panel must not open the floating search automatically.
     h.state_mut().right = None;
     h.run_steps(2);
+    assert!(h.state().views[i].find.as_ref().unwrap().in_panel);
+    assert!(h.query_by_label("Find options").is_none());
+    h.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::F);
+    h.run_steps(3);
     assert!(!h.state().views[i].find.as_ref().unwrap().in_panel);
+    h.get_by_label("Find options");
 }
 
 #[test]

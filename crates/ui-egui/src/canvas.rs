@@ -898,6 +898,7 @@ impl DocView {
     /// Open the find bar (or focus it if already open).
     pub fn open_find(&mut self) {
         let f = self.find.get_or_insert_with(Find::default);
+        f.in_panel = false;
         f.focus = true;
     }
 
@@ -1987,7 +1988,7 @@ pub fn shortcuts(view: &mut DocView, ctx: &egui::Context) {
         view.view_history(true);
     }
     let key = |k| ctx.input(|i| i.key_pressed(k));
-    if key(Key::Escape) {
+    if key(Key::Escape) && !egui::Popup::is_any_open(ctx) {
         if view.camera.is_some() || view.camera_done.is_some() {
             view.pending_action = Some(ViewAction::CancelCamera);
         } else if view.selection.is_some() {
@@ -2051,14 +2052,8 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
     // Keyboard scrolling applies to this frame's page view only, never later.
     let key_scroll = std::mem::take(&mut app.views[index].key_scroll);
-    // The Search panel closed: its search moves to the find bar.
-    let search_open = app.right == Some(crate::RightPanel::Search);
-    if let Some(f) = app.views[index].find.as_mut()
-        && f.in_panel
-        && !search_open
-    {
-        f.in_panel = false;
-    }
+    // Closing the Search panel leaves its query available without opening a popup.
+    // Only an explicit Find request switches that search back to the floating field.
     let Some(doc) = app.session.get(app.views[index].id) else { return };
     let info = &doc.info;
     if info.pages.is_empty() {
@@ -3606,36 +3601,55 @@ fn set_layers(app: &mut PdfCraftApp, index: usize, changes: &[(LayerOp, (u32, u1
     }
 }
 
-/// Acrobat-style floating find bar at the top-right of the document area.
+/// Compact Find popup, anchored below the toolbar and opened explicitly with Ctrl/Cmd+F.
 fn find_bar(view: &mut DocView, pages: usize, area: Rect, ui: &mut egui::Ui, t: &Tokens) {
     let Some(find) = view.find.as_mut() else { return };
-    // The Search panel shows this search.
     if find.in_panel {
         return;
     }
-    let mut close = false;
-    let mut step: Option<bool> = None;
+    let mut close = !egui::Popup::is_any_open(ui.ctx())
+        && ui.ctx().memory(|m| m.top_modal_layer().is_none())
+        && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+    let mut step = None;
     let searched = view.texts.len() + view.text_failed.len();
+    // On narrow windows the floating card may cover the sidebar, but never leave the viewport.
+    let bounds = ui.ctx().content_rect().shrink(12.0);
+    let width = bounds.width().clamp(0.0, 360.0);
     egui::Area::new(egui::Id::new("find-bar"))
         .order(egui::Order::Middle)
+        .movable(false)
         .pivot(Align2::RIGHT_TOP)
-        .fixed_pos(area.right_top() + vec2(-18.0, 12.0))
+        .fixed_pos(pos2(area.right().min(bounds.right()), area.top() + 12.0))
+        .constrain_to(bounds)
         .show(ui.ctx(), |ui| {
             egui::Frame::NONE
                 .fill(t.card)
                 .stroke(Stroke::new(1.0, t.border))
-                .corner_radius(CornerRadius::same(10))
+                .corner_radius(CornerRadius::same(8))
                 .shadow(egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(if t.dark() { 90 } else { 30 }) })
-                .inner_margin(egui::Margin::symmetric(10, 6))
+                .inner_margin(egui::Margin::same(10))
                 .show(ui, |ui| {
+                    ui.set_width((width - 22.0).max(0.0));
+                    ui.spacing_mut().item_spacing = vec2(4.0, 6.0);
                     ui.horizontal(|ui| {
-                        ui.add(icons::image("search", 16.0, t.text_muted));
-                        let edit = egui::TextEdit::singleline(&mut find.query)
-                            .id(egui::Id::new("find-input"))
-                            .hint_text(tl!("Find text"))
-                            .desired_width(220.0)
-                            .frame(egui::Frame::NONE);
-                        let r = ui.add(edit);
+                        let previous = find.query.clone();
+                        let input_width = (ui.available_width() - 34.0).max(0.0);
+                        ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::new(1.0, t.border);
+                        let r = ui.add(
+                            egui::TextEdit::singleline(&mut find.query)
+                                .id(egui::Id::new("find-input"))
+                                .hint_text(tl!("Find text"))
+                                .margin(egui::Margin { left: 30, right: 8, top: 8, bottom: 8 })
+                                .min_size(vec2(0.0, 34.0))
+                                .desired_width(input_width),
+                        );
+                        r.widget_info(|| {
+                            let mut info = egui::WidgetInfo::text_edit(ui.is_enabled(), &previous, &find.query, "");
+                            info.label = Some(tl!("Find text").to_string());
+                            info
+                        });
+                        let icon = Rect::from_center_size(r.rect.left_center() + vec2(16.0, 0.0), vec2(16.0, 16.0));
+                        icons::paint(ui, icon, "search", 16.0, t.text_muted);
                         if find.focus {
                             r.request_focus();
                             find.focus = false;
@@ -3644,9 +3658,11 @@ fn find_bar(view: &mut DocView, pages: usize, area: Rect, ui: &mut egui::Ui, t: 
                             step = Some(!ui.input(|i| i.modifiers.shift));
                             r.request_focus();
                         }
-                        if r.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                        if icons::button(ui, "x", 30.0, false, tl!("Close (Esc)")).clicked() {
                             close = true;
                         }
+                    });
+                    ui.horizontal(|ui| {
                         let status = if find.query.trim().is_empty() {
                             String::new()
                         } else if find.matches.is_empty() {
@@ -3666,27 +3682,32 @@ fn find_bar(view: &mut DocView, pages: usize, area: Rect, ui: &mut egui::Ui, t: 
                                 ],
                             )
                         };
-                        ui.label(egui::RichText::new(status).font(theme::regular(12.0)).color(t.text_muted));
-                        let tip = crate::commands::key_tip(ui.ctx(), tl!("Previous ({key})"), crate::commands::FIND_PREV);
-                        if icons::button(ui, "chevron-up", 26.0, false, &tip).clicked() {
-                            step = Some(false);
-                        }
-                        let tip = crate::commands::key_tip(ui.ctx(), tl!("Next ({key})"), crate::commands::FIND_NEXT);
-                        if icons::button(ui, "chevron-down", 26.0, false, &tip).clicked() {
-                            step = Some(true);
-                        }
-                        let opts = icons::button(ui, "settings-2", 26.0, find.case_sensitive || find.whole_words, tl!("Find options"));
+                        let status_width = (ui.available_width() - 102.0).max(0.0);
+                        ui.add_sized(
+                            vec2(status_width, 30.0),
+                            egui::Label::new(egui::RichText::new(&status).font(theme::regular(theme::TEXT_LABEL)).color(t.text_muted))
+                                .truncate()
+                                .halign(egui::Align::LEFT),
+                        )
+                        .on_hover_text(&status);
+                        ui.add_enabled_ui(!find.matches.is_empty(), |ui| {
+                            let tip = crate::commands::key_tip(ui.ctx(), tl!("Previous ({key})"), crate::commands::FIND_PREV);
+                            if icons::button(ui, "chevron-up", 30.0, false, &tip).clicked() {
+                                step = Some(false);
+                            }
+                            let tip = crate::commands::key_tip(ui.ctx(), tl!("Next ({key})"), crate::commands::FIND_NEXT);
+                            if icons::button(ui, "chevron-down", 30.0, false, &tip).clicked() {
+                                step = Some(true);
+                            }
+                        });
+                        let opts = icons::button(ui, "settings-2", 30.0, find.case_sensitive || find.whole_words, tl!("Find options"));
                         egui::Popup::menu(&opts).show(|ui| {
                             let a = ui.add(widgets::checkbox(&mut find.whole_words, tl!("Whole words only"))).changed();
                             let b = ui.add(widgets::checkbox(&mut find.case_sensitive, tl!("Case-sensitive"))).changed();
                             if a || b {
-                                // Search again with the new options.
                                 find.case_query.clear();
                             }
                         });
-                        if icons::button(ui, "x", 26.0, false, tl!("Close (Esc)")).clicked() {
-                            close = true;
-                        }
                     });
                 });
         });

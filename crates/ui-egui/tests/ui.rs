@@ -526,6 +526,64 @@ fn find_reports_no_matches() {
 }
 
 #[test]
+fn find_popup_is_shortcut_only_and_stays_inside_narrow_windows() {
+    use egui::{Key, Modifiers};
+    let mut h = harness(|app| app.open_bytes("text.pdf", None, TEXT_FIXTURE.to_vec()).unwrap());
+    settle(&mut h);
+    assert!(h.state().views[0].find.is_none());
+    assert!(h.query_by_label("Find…").is_none(), "no toolbar search button");
+    h.get_by_label("Menu").click();
+    h.run_steps(2);
+    h.get_by_label("Edit ⏵").hover();
+    h.run_steps(3);
+    assert!(h.query_by_label("Find…").is_none(), "Find is opened with Ctrl+F, not a menu item");
+    h.key_press(Key::Escape);
+    h.run_steps(2);
+    h.state_mut().set_option("palette", "edit.find").unwrap();
+    h.run_steps(3);
+    assert!(h.query_by_label("Find…").is_none(), "the palette must not add another popup trigger");
+    h.key_press(Key::Escape);
+    h.run_steps(2);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::F);
+    h.run_steps(4);
+    h.get_by_label("Find text").type_text("brown");
+    settle(&mut h);
+    assert_eq!(h.state().views[0].find.as_ref().unwrap().matches.len(), 2);
+    h.key_press(Key::Enter);
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].find.as_ref().unwrap().current, Some(1));
+    h.key_press_modifiers(Modifiers::SHIFT, Key::Enter);
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].find.as_ref().unwrap().current, Some(0));
+    for width in [820.0, 420.0] {
+        h.set_size(egui::vec2(width, 600.0));
+        h.run_steps(6);
+        let card = h.ctx.memory(|m| m.area_rect(egui::Id::new("find-bar"))).unwrap();
+        assert!(card.left() >= 0.0 && card.right() <= width, "Find must fit the window: {card:?}");
+        assert!(card.width() <= 362.0, "the search popup stays compact: {card:?}");
+        let field = h.get_by_label("Find text").rect();
+        assert!(field.height() >= 34.0 && card.contains_rect(field));
+        assert!(card.contains_rect(h.get_by_label("Find options").rect()));
+        assert!(card.contains_rect(h.get_by_label("Close (Esc)").rect()));
+    }
+    h.get_by_label("Find options").click();
+    h.run_steps(3);
+    h.get_by_label("Whole words only");
+    h.get_by_label("Case-sensitive");
+    h.key_press(Key::Escape);
+    h.run_steps(3);
+    assert!(h.state().views[0].find.is_some(), "Escape dismisses the options before the search");
+    h.get_by_label("Find text").click();
+    h.run_steps(2);
+    h.key_press(Key::Escape);
+    h.run_steps(3);
+    assert!(h.state().views[0].find.is_none());
+    h.key_press_modifiers(Modifiers::COMMAND, Key::G);
+    h.run_steps(3);
+    assert!(h.state().views[0].find.is_none(), "next match must not open Find");
+}
+
+#[test]
 fn drag_selects_text_and_copy_returns_it() {
     let mut h = harness(|app| {
         app.open_bytes("text.pdf", None, TEXT_FIXTURE.to_vec()).expect("opens");
@@ -1257,7 +1315,8 @@ fn reading_toolbar_centers_navigation_and_right_aligns_actions() {
     assert!(((previous.left() + zoom.right()) * 0.5 - 700.0).abs() < 3.0, "page controls are centered");
     assert!((save.right() - 1390.0).abs() < 3.0, "Save is at the right margin: {save:?}");
     assert!(zoom.right() < highlight.left(), "navigation and actions must not overlap");
-    assert!(h.get_by_label("Find…").rect().right() < previous.left());
+    assert!(h.get_by_label("Toggle sidebar").rect().right() < previous.left());
+    assert!(h.query_by_label("Find…").is_none());
 }
 
 #[test]
