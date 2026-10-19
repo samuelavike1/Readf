@@ -47,3 +47,15 @@ black-point normalization is unchanged. `lab_bradford_tests` checks independent
 D50/equal-energy neutral and chromatic oracles, D65 identity, and direct/Indexed
 consistency (including an asymmetric chromatic Range), and zero/overflowing
 cone-response fallback.
+
+## Readf v0.9.0 backports (2026-10-19)
+
+Selected upstream fixes applied to the v0.8.0 renderer; this is not a wholesale vendor update.
+The existing upstream sources and licences above still apply.
+
+| Upstream change | Vendored change | Regression evidence in `pdfcraft-render` |
+|---|---|---|
+| [#1903](https://github.com/storytold/pdfcraft/commit/16d91980) | hayro-syntax: CCITT Group 4 `/Rows 0` uses image height | `group4_fax_with_rows_zero_decodes_to_the_image_height` |
+| [#1954](https://github.com/storytold/pdfcraft/commit/e4657eb5) | hayro-syntax: ASCII85 respects the stream output limit | `decompression_bombs_stop_at_the_stream_limit` |
+| [#2027](https://github.com/storytold/pdfcraft/commit/15d82b5b) | hayro-interpret: neutral, non-isolated transparency groups preserve Multiply highlights over text | `a_multiply_highlight_inside_a_transparency_group_keeps_the_text` |
+| [#2132](https://github.com/storytold/pdfcraft/commit/210fb904) | hayro: gradient fills under soft masks use the sampled shading path | `soft_mask_applies_to_a_shading_pattern_fill` |

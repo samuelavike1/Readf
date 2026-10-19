@@ -1110,6 +1110,8 @@ fn worker(
                         if lock(&shared.busy).get_mut(id).is_none_or(|slot| slot.take().is_none()) {
                             return;
                         }
+                        // Release the active key, retrying if demand returned during parsing.
+                        shared.queue.retry(req);
                         continue;
                     }
                     let _ = parsed.set(init);
@@ -2148,6 +2150,62 @@ mod tests {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
+    fn check_cancelled_parse_request_requeue(renew_before_abort: bool) {
+        use super::*;
+        use std::{sync::mpsc, time::Duration};
+
+        let pool = RenderPool::new(Arc::new(ONE_PAGE_TWICE.to_vec()), 1, RenderConfig::default());
+        let a = RenderRequest { page: 0, kind: RequestKind::Text, scale: 1.0, tag: 501, ..Default::default() };
+        let b = RenderRequest { page: 1, scale: 1.0, tag: 502, ..Default::default() };
+        let parse = parse_gate();
+        *lock(&pool.shared.parse_gate) = Some(parse.clone());
+        let (entered_tx, entered_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        *lock(&pool.shared.busy_publish_gate) = Some(BusyPublishGate { request: b, entered: entered_tx, release: Arc::new(Mutex::new(release_rx)) });
+
+        pool.set_queue(vec![a]);
+        parse.entered.wait();
+        pool.set_queue(vec![b]);
+        if renew_before_abort {
+            // B stays first so the worker reaches its gate even when aborting A requeues it.
+            pool.set_queue(vec![b, a]);
+        }
+        parse.release.wait();
+        entered_rx.recv_timeout(Duration::from_secs(2)).expect("the worker finished aborting A and reached B");
+        // The parse hook's lock can span its barrier waits; clear it only after parsing returned.
+        *lock(&pool.shared.parse_gate) = None;
+        if !renew_before_abort {
+            pool.set_queue(vec![a]);
+        }
+        // B holds the sole worker, so this observes queue admission without racing a worker pop.
+        let pending = pool.shared.queue.pop();
+        if let Some(request) = pending {
+            pool.shared.queue.retry(request);
+        }
+        pool.set_queue(vec![a]);
+        // Release the worker before the regression assertion, including on the unfixed baseline.
+        release_tx.send(()).unwrap();
+        assert_eq!(pending, Some(a), "aborting a parse must release its active request identity");
+
+        let page = receive_before_deadline(&pool);
+        assert_eq!(page.request, a);
+        assert!(page.error.is_none(), "renewed text request failed: {:?}", page.error);
+        assert!(page.text.is_some(), "the exact cancelled text request completed");
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn cancelled_parse_request_can_be_requested_again() {
+        check_cancelled_parse_request_requeue(false);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn cancelled_parse_request_renewed_before_abort_is_requeued() {
+        check_cancelled_parse_request_requeue(true);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
     #[test]
     fn request_removed_before_busy_publication_skips_parser_acquisition() {
         use std::{sync::mpsc, time::Duration};
@@ -2968,6 +3026,67 @@ trailer << /Root 1 0 R >>
         }
     }
 
+    /// #1968: the highlight appearance other editors write, a transparency group whose content is
+    /// filled with `/BM /Multiply`, drew as an opaque block over the text. Every `/Group` form
+    /// got a layer of its own, so the Multiply blended with that layer's transparent backdrop
+    /// and the layer then covered the page. Vendored hayro-interpret patch: a group that is not
+    /// isolated (ISO 32000-2 §11.4.7: its elements composite with what is already on the page)
+    /// and is entered at full opacity, with no soft mask and Normal blending, has no backdrop of
+    /// its own to offer, so its content is drawn straight onto the page. An isolated group
+    /// (`/I true`) keeps its blank backdrop, and a group entered at partial opacity still gets
+    /// its layer so that opacity applies to the group as a whole.
+    #[test]
+    fn a_multiply_highlight_inside_a_transparency_group_keeps_the_text() {
+        // `annots`: the form drawn as the highlight's appearance; `page`: drawn from the page
+        // content instead, with the extra graphics state in front of the `Do`.
+        let render = |group: &str, annots: &str, page: &str| {
+            let content = format!("0 g 100 40 10 20 re f {page}");
+            let form = "/GS0 gs 1 1 0 rg 15 35 105 30 re f";
+            let pdf = format!(
+                "%PDF-1.7
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Contents 4 0 R {annots} /Resources << /XObject << /Fx 6 0 R >> /ExtGState << /Half << /ca 0.5 >> >> >> >> endobj
+4 0 obj << /Length {} >> stream
+{content}
+endstream endobj
+5 0 obj << /Type /Annot /Subtype /Highlight /Rect [15 35 120 65] /QuadPoints [15 65 120 65 15 35 120 35] /C [1 1 0] /AP << /N 6 0 R >> >> endobj
+6 0 obj << /Type /XObject /Subtype /Form /BBox [15 35 120 65] {group} /Resources << /ExtGState << /GS0 << /BM /Multiply /CA 1 /ca 1 >> >> >> /Length {} >> stream
+{form}
+endstream endobj
+trailer << /Root 1 0 R >>
+%%EOF",
+                content.len(),
+                form.len()
+            );
+            let mut r = PageRenderer::new(Arc::new(pdf.into_bytes()), RenderConfig::default());
+            let p = r.render(RenderRequest { page: 0, kind: RequestKind::Pixels, tile: None, scale: 1.0, tag: 0, ..Default::default() });
+            assert!(p.error.is_none(), "{group}: {:?}", p.error);
+            p
+        };
+        let px = |p: &RenderedPage, x: u32, y: u32| p.rgba[((y * p.width + x) * 4) as usize..][..4].to_vec();
+        let (white, black, yellow) = (vec![255, 255, 255, 255], vec![0, 0, 0, 255], vec![255, 255, 0, 255]);
+        let annots = "/Annots [5 0 R]";
+        let plain = "/Group << /S /Transparency /CS /DeviceRGB >>";
+        let explicit = "/Group << /S /Transparency /CS /DeviceRGB /I false /K false >>";
+        for group in [plain, explicit, ""] {
+            for (annots, page) in [(annots, ""), ("", "/Fx Do")] {
+                let p = render(group, annots, page);
+                assert_eq!(px(&p, 30, 50), yellow, "{group} {page}: filled with the highlight colour");
+                assert_eq!(px(&p, 105, 50), black, "{group} {page}: Multiply keeps the text underneath");
+                assert_eq!(px(&p, 150, 50), white, "{group} {page}: outside the appearance");
+            }
+        }
+        // Isolated: the group's own transparent backdrop is all the Multiply sees (§11.4.7).
+        let p = render("/Group << /S /Transparency /CS /DeviceRGB /I true >>", annots, "");
+        assert_eq!(px(&p, 105, 50), yellow, "an isolated group starts from a blank backdrop");
+        // Entered at half opacity, the group is still composited as one: half yellow over white.
+        let p = render(plain, "", "/Half gs /Fx Do");
+        let half = px(&p, 30, 50);
+        assert!(half[0] == 255 && half[1] == 255 && (120..=136).contains(&half[2]), "{half:?}");
+        assert_eq!(px(&p, 150, 50), white);
+    }
+
     /// A Highlight annotation without an appearance stream (common in older and generated files)
     /// was not drawn at all. Vendored hayro-interpret patch: its /QuadPoints are filled with /C at
     /// /CA, blended with Multiply, as PdfCraft draws its own highlights (pdfcraft-annot); MuPDF,
@@ -3470,6 +3589,38 @@ trailer << /Root 1 0 R >>
         page(&format!("q 20 0 0 20 5 5 cm BI /W 4294967295 /H 2 /IM true /BPC 1 ID \u{0}\u{ff}\u{ff}\u{0} EI Q {red}"), "<< >>");
         let fax = "<< /Type /XObject /Subtype /Image /Width 81 /Height 26 /ColorSpace /DeviceGray /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /Columns 4294967295 /Rows 26 /K -1 >> /Length 4 >> stream\n\u{0}\u{0}\u{0}\u{0}\nendstream";
         page(&format!("q 20 0 0 20 5 5 cm /Im1 Do Q {red}"), fax);
+    }
+
+    /// Scanners and fax services write Group 4 pages with `/Rows 0`, which ISO 32000-2 Table 11
+    /// defines as "height not predetermined" (the default), not as zero rows. Such a page used to
+    /// render blank. The image is an 8 × 4 all-black Group 4 stream, hand-encoded from ITU-T T.6:
+    /// one horizontal-mode row (white 0, black 8), three V0 rows, then EOFB.
+    #[test]
+    fn group4_fax_with_rows_zero_decodes_to_the_image_height() {
+        const ALL_BLACK_8X4: [u8; 6] = [0x26, 0xa2, 0xfe, 0x00, 0x20, 0x02];
+        for rows in ["", "/Rows 4", "/Rows 0"] {
+            let content = "q 20 0 0 20 5 5 cm /Im1 Do Q";
+            let mut pdf = format!(
+                "%PDF-1.7
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents 4 0 R /Resources << /XObject << /Im1 5 0 R >> >> >> endobj
+4 0 obj << /Length {} >> stream
+{content}
+endstream endobj
+5 0 obj << /Type /XObject /Subtype /Image /Width 8 /Height 4 /ColorSpace /DeviceGray /BitsPerComponent 1 /Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns 8 {rows} >> /Length {} >> stream\n",
+                content.len(),
+                ALL_BLACK_8X4.len()
+            )
+            .into_bytes();
+            pdf.extend_from_slice(&ALL_BLACK_8X4);
+            pdf.extend_from_slice(b"\nendstream endobj\ntrailer << /Root 1 0 R >>\n%%EOF");
+            let mut renderer = PageRenderer::new(Arc::new(pdf), RenderConfig::default());
+            let page = renderer.render(RenderRequest { page: 0, kind: RequestKind::Pixels, tile: None, scale: 1.0, tag: 0, ..Default::default() });
+            assert!(page.error.is_none(), "{rows:?}: {:?}", page.error);
+            assert_eq!(&page.rgba[((24 * 40 + 15) * 4)..][..4], &[0, 0, 0, 255], "{rows:?}: the fax image paints black");
+            assert_eq!(&page.rgba[((38 * 40 + 1) * 4)..][..4], &[255, 255, 255, 255], "{rows:?}: outside the image stays white");
+        }
     }
 
     #[test]
@@ -4303,8 +4454,8 @@ trailer << /Root 1 0 R >>
     /// Found while triaging `cargo xtask fuzz` on Windows, by hand rather than by the fuzzer
     /// (random mutations almost never make a high-ratio stream): a 2 MB page whose content
     /// stream, or whose 8 × 8 image, inflated to 2 GB took the renderer past 3 GB in under a
-    /// second. Flate (through flate2 and through the fallback inflater), LZW and RunLength expand
-    /// without limit. Vendored hayro-syntax patch: each stops at `MAX_DECODED_STREAM`, and an image
+    /// second. Flate (through flate2 and through the fallback inflater), LZW, RunLength and ASCII85
+    /// (#1796: each `z` is four bytes, here after Flate) expand without limit. Vendored hayro-syntax patch: each stops at `MAX_DECODED_STREAM`, and an image
     /// of known size at its own rows.
     #[test]
     fn decompression_bombs_stop_at_the_stream_limit() {
@@ -4314,11 +4465,14 @@ trailer << /Root 1 0 R >>
         let big = limit + (32 << 20);
         let mut run_length = [0x81u8, 0].repeat(big / 128 + 1); // runs of 128 zeros
         run_length.push(128);
-        let streams: [(&str, Vec<u8>); 4] = [
+        let mut a85 = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::best());
+        std::io::Write::write_all(&mut a85, &b"z".repeat(big / 4 + 1)).unwrap();
+        let streams: [(&str, Vec<u8>); 5] = [
             ("/FlateDecode", zlib_zeros(big)),
             ("/FlateDecode", deflate_for_the_fallback(big)),
             ("/LZWDecode", lzw_zeros(big / 7_000_000 + 1)),
             ("/RunLengthDecode", run_length),
+            ("[/FlateDecode /ASCII85Decode]", a85.finish().unwrap()),
         ];
         let mut pdf = b"%PDF-1.7\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] >> endobj\n".to_vec();
         for (i, (filter, data)) in streams.iter().enumerate() {
@@ -4329,7 +4483,7 @@ trailer << /Root 1 0 R >>
         pdf.extend_from_slice(b"trailer << /Root 1 0 R >>\n%%EOF\n");
         let doc = Pdf::new(pdf).expect("parses");
         let found: Vec<Stream<'_>> = doc.objects().into_iter().filter_map(|o| if let Object::Stream(s) = o { Some(s) } else { None }).collect();
-        assert_eq!(found.len(), 4, "all four bomb streams are found");
+        assert_eq!(found.len(), 5, "all five bomb streams are found");
         for stream in &found {
             let what = format!("{:?}", stream.filters());
             let decoded = stream.decoded().expect("a bomb still decodes, up to the limit");
@@ -5932,6 +6086,38 @@ endstream endobj
 trailer << /Root 1 0 R >>
 %%EOF";
         let mut r = PageRenderer::new(Arc::new(pdf.to_vec()), RenderConfig::default());
+        let p = r.render(RenderRequest { page: 0, kind: RequestKind::Pixels, tile: None, scale: 1.0, tag: 0, ..Default::default() });
+        let px = |x: u32, y: u32| p.rgba[((y * p.width + x) * 4) as usize..][..4].to_vec();
+        assert_eq!(px(25, 50), vec![255, 0, 0, 255], "inside the mask");
+        assert_eq!(px(75, 50), vec![255, 255, 255, 255], "outside the mask");
+    }
+
+    /// Issue #2128: PowerPoint fades a gradient fill (an axial shading pattern) through a soft
+    /// mask. vello_cpu 0.0.8 copies an opaque gradient straight over fully covered tiles,
+    /// skipping the mask, so the fade came out solid. Images get around that by declaring
+    /// transparency while a mask or blend mode is set; native gradients can't, so they are
+    /// sampled as a texture then.
+    #[test]
+    fn soft_mask_applies_to_a_shading_pattern_fill() {
+        let content = "/Pattern cs /P0 scn /M gs 0 0 100 100 re f";
+        let pdf = format!(
+            "%PDF-1.7
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 4 0 R /Resources << /ExtGState << /M 5 0 R >> /Pattern << /P0 7 0 R >> >> >> endobj
+4 0 obj << /Length {} >> stream
+{content}
+endstream endobj
+5 0 obj << /Type /ExtGState /SMask << /Type /Mask /S /Alpha /G 6 0 R >> >> endobj
+6 0 obj << /Type /XObject /Subtype /Form /BBox [0 0 100 100] /Group << /S /Transparency /CS /DeviceRGB >> /Length 20 >> stream
+0 g 0 0 50 100 re f
+endstream endobj
+7 0 obj << /PatternType 2 /Shading << /ShadingType 2 /ColorSpace /DeviceRGB /Coords [0 0 100 0] /Extend [true true] /Function << /FunctionType 2 /Domain [0 1] /C0 [1 0 0] /C1 [1 0 0] /N 1 >> >> >> endobj
+trailer << /Root 1 0 R >>
+%%EOF",
+            content.len()
+        );
+        let mut r = PageRenderer::new(Arc::new(pdf.into_bytes()), RenderConfig::default());
         let p = r.render(RenderRequest { page: 0, kind: RequestKind::Pixels, tile: None, scale: 1.0, tag: 0, ..Default::default() });
         let px = |x: u32, y: u32| p.rgba[((y * p.width + x) * 4) as usize..][..4].to_vec();
         assert_eq!(px(25, 50), vec![255, 0, 0, 255], "inside the mask");

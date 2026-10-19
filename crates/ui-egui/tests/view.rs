@@ -392,8 +392,9 @@ fn default_page_display_is_used_for_new_documents() {
     h.state_mut().set_option("default-layout", "single").unwrap();
     h.state_mut().open_bytes("other.pdf", None, PAGES.to_vec()).expect("opens");
     assert_eq!(h.state().views[1].layout, PageLayout::Single);
-    // So do documents the app creates itself (blank, combined, extracted, from images…).
-    assert!(h.state_mut().execute("create.blank"));
+    // Each newly opened document inherits the defaults; Create is removed from Readf.
+    assert!(!h.state_mut().execute("create.blank"));
+    h.state_mut().open_bytes("new.pdf", None, PAGES.to_vec()).expect("opens");
     assert_eq!(h.state().views[2].layout, PageLayout::Single);
     // Persisted preferences survive a restart.
     let saved = h.state().persist();
@@ -421,7 +422,7 @@ fn default_zoom_is_used_for_new_documents() {
     // The factory default fits the width.
     assert_eq!(h.state().views[0].fit, Fit::Width);
     h.state_mut().set_option("default-zoom", "fit-page").unwrap();
-    assert!(h.state_mut().execute("create.blank"));
+    h.state_mut().open_bytes("new.pdf", None, PAGES.to_vec()).expect("opens");
     assert_eq!(h.state().views[1].fit, Fit::Page);
     h.state_mut().set_option("default-zoom", "150%").unwrap();
     h.state_mut().open_bytes("other.pdf", None, PAGES.to_vec()).expect("opens");
@@ -454,18 +455,19 @@ fn preferences_set_the_default_zoom() {
     h.run_steps(4);
     h.get_by_label("Zoom to page level").click();
     h.run_steps(2);
-    assert!(h.state_mut().execute("create.blank"));
+    h.state_mut().open_bytes("new.pdf", None, PAGES.to_vec()).expect("opens");
     assert_eq!(h.state().views[1].fit, pdfcraft_ui_egui::canvas::Fit::Page);
 }
 
 #[test]
-fn rail_page_display_menu_offers_acrobats_view_choices() {
+fn zoom_menu_offers_reader_view_choices() {
     use egui_kittest::kittest::Queryable;
     use pdfcraft_ui_egui::canvas::{Fit, PageLayout};
     let mut h = harness(&[]);
     h.run_steps(4);
     let pick = |h: &mut Harness<'static, PdfCraftApp>, item: &str| {
-        h.get_by_label_contains("Page display:").click();
+        let zoom = format!("{:.0}%", h.state().views[0].zoom * 100.0);
+        h.get_by_label(&zoom).click();
         h.run_steps(3);
         h.get_by_label(item).click();
         h.run_steps(4);
@@ -489,11 +491,12 @@ fn rail_page_display_menu_offers_acrobats_view_choices() {
 }
 
 #[test]
-fn rail_page_display_button_switches_layouts() {
+fn zoom_menu_switches_layouts() {
     use egui_kittest::kittest::Queryable;
     let mut h = harness(&[]);
     h.run_steps(4);
-    h.get_by_label_contains("Page display").click();
+    let zoom = format!("{:.0}%", h.state().views[0].zoom * 100.0);
+    h.get_by_label(&zoom).click();
     h.run_steps(3);
     h.get_by_label("Single page").click();
     h.run_steps(4);
@@ -649,6 +652,10 @@ fn bookmark_destinations_scroll_to_their_position() {
     use egui_kittest::kittest::Queryable;
     use pdfcraft_ui_egui::canvas::Fit;
     let mut h = dests_harness();
+    // Readf has a narrower sidebar: size this viewport so the XYZ target can reach the
+    // left gutter without horizontal scrolling being clamped at the page edge.
+    h.set_size(egui::vec2(1000.0, 900.0));
+    h.run_steps(6);
     // Fit width: the pages are taller than the window, so any point of them can reach its top.
     h.get_by_label("Section 1.1 Shapes").click();
     h.run_steps(6);
@@ -980,17 +987,15 @@ fn compare_page_with_raster(h: &mut Harness<'static, PdfCraftApp>, pdf: &[u8], z
     (sum as f64 / n as f64, worst)
 }
 
-#[test]
-fn zooming_a_tiled_page_shows_its_earlier_tiles_until_new_ones_arrive() {
-    let _gpu = gpu();
-    // A 1200 pt square page of fine lines (0.5 pt every 1.7 pt): tiled at 300 %.
+/// A 1200 pt square page of fine lines (0.5 pt every 1.7 pt): tiled at 300 %, whole-page at 150 %.
+fn fine_grid_pdf() -> Vec<u8> {
     let mut content = String::from("0 g\n");
     for i in 0..670 {
         let v = 30.0 + 1.7 * i as f32;
         content.push_str(&format!("{v} 30 0.5 1140 re 30 {v} 1140 0.5 re\n"));
     }
     content.push_str("f\n");
-    let pdf = format!(
+    format!(
         "%PDF-1.7
 1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
 2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
@@ -1002,15 +1007,21 @@ trailer << /Root 1 0 R >>
 %%EOF",
         content.len()
     )
-    .into_bytes();
-    let mut h = Harness::builder().with_size(egui::vec2(1000.0, 800.0)).build_eframe(move |_cc| {
+    .into_bytes()
+}
+
+fn grid_harness(pdf: Vec<u8>, zoom: &str) -> Harness<'static, PdfCraftApp> {
+    Harness::builder().with_size(egui::vec2(1000.0, 800.0)).build_eframe(move |_cc| {
         let mut app = PdfCraftApp::new();
         app.open_bytes("grid.pdf", None, pdf.clone()).expect("opens");
         app.set_option("left", "closed").unwrap();
         app.set_option("panel", "none").unwrap();
-        app.set_option("zoom", "300").unwrap();
+        app.set_option("zoom", zoom).unwrap();
         app
-    });
+    })
+}
+
+fn settle(h: &mut Harness<'static, PdfCraftApp>) {
     for _ in 0..400 {
         h.run_steps(2);
         if !h.state().render_pending() {
@@ -1018,24 +1029,56 @@ trailer << /Root 1 0 R >>
         }
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
-    // Detail in the middle of the window: the summed difference between neighbouring pixels.
-    let detail = |h: &mut Harness<'static, PdfCraftApp>| {
-        let img = h.render().expect("renders");
-        let (cx, cy) = (img.width() / 2, img.height() / 2);
-        let mut sum = 0u64;
-        for y in cy - 100..cy + 100 {
-            for x in cx - 150..cx + 150 {
-                sum += u64::from(img.get_pixel(x, y)[0].abs_diff(img.get_pixel(x + 1, y)[0]));
-            }
+}
+
+/// Detail in the middle of the window: the summed difference between neighbouring pixels.
+fn centre_detail(h: &mut Harness<'static, PdfCraftApp>) -> u64 {
+    let img = h.render().expect("renders");
+    let (cx, cy) = (img.width() / 2, img.height() / 2);
+    let mut sum = 0u64;
+    for y in cy - 100..cy + 100 {
+        for x in cx - 150..cx + 150 {
+            sum += u64::from(img.get_pixel(x, y)[0].abs_diff(img.get_pixel(x + 1, y)[0]));
         }
-        sum
-    };
-    let sharp = detail(&mut h);
+    }
+    sum
+}
+
+#[test]
+fn zooming_a_tiled_page_shows_its_earlier_tiles_until_new_ones_arrive() {
+    let _gpu = gpu();
+    let mut h = grid_harness(fine_grid_pdf(), "300");
+    settle(&mut h);
+    let sharp = centre_detail(&mut h);
     // The first frame at a new zoom has no tiles for it yet (they are requested at its end).
     h.state_mut().set_option("zoom", "310").unwrap();
     h.step();
-    let first = detail(&mut h);
+    let first = centre_detail(&mut h);
     assert!(first * 10 > sharp * 7, "the first frame after zooming lost its detail: {first} against {sharp}");
+}
+
+/// #2196: zooming away from a tiled page and back must not re-blur an area already rendered
+/// sharp. The tiles of the zoom just left used to be dropped while the page was shown whole,
+/// so returning to it was a cold miss and every tile cost a full page interpret again.
+#[test]
+fn returning_to_a_visited_zoom_reuses_its_cached_tiles() {
+    let _gpu = gpu();
+    let mut h = grid_harness(fine_grid_pdf(), "300");
+    settle(&mut h);
+    let before = h.state().views[0].tiles_debug(0);
+    assert!(!before.is_empty(), "the 300 % page should be tiled, but it cached no tiles");
+    // Zoom right out, where the 1200 pt page fits in one raster and is not tiled at all, so
+    // none of its tiles is demanded...
+    h.state_mut().set_option("zoom", "50").unwrap();
+    settle(&mut h);
+    // ...then back to the first zoom, which was already rendered sharp.
+    h.state_mut().set_option("zoom", "300").unwrap();
+    h.step();
+    let after = h.state().views[0].tiles_debug(0);
+    // Every tile rendered sharp before the round trip is still cached: zooming away must not
+    // drop them, so returning shows them at once instead of re-interpreting the page per tile.
+    let lost: Vec<_> = before.iter().copied().filter(|k| !after.contains(k)).collect();
+    assert!(lost.is_empty(), "returning to a visited zoom dropped its cached tiles {lost:?} (had {before:?}, now {after:?})");
 }
 
 #[test]
