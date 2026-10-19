@@ -56,7 +56,7 @@ fn window_buttons_stay_at_the_right_edge_with_overflowing_tabs() {
         assert!(minimize.right() <= maximize.left() && maximize.right() <= close.left());
         assert!(h.get_by_label_contains("Display theme:").rect().right() < minimize.left());
         assert!(h.get_by_label("Open").rect().right() < minimize.left());
-        assert!((close.center().y - h.get_by_label("Home").rect().center().y).abs() < 1.0);
+        assert!((close.center().y - h.get_by_label("Menu").rect().center().y).abs() < 1.0);
     }
 }
 

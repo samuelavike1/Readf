@@ -63,10 +63,7 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     });
                     ui.add_space(window_controls::SIDE_GAP - 4.0);
                 }
-                if icons::button(ui, "house", button, app.active.is_none() && !app.combine_showing(), tl!("Home")).clicked() {
-                    app.active = None;
-                    app.combine_tab.focused = false;
-                }
+                main_menu(app, ui, button);
                 // Reserve the theme and keyboard-shortcut buttons and their gaps.
                 let controls_width = 2.0 * button + 12.0 + window_controls::width(&controls.right);
                 // Open stays in sight after the tabs: its icon, text and padding, and the gaps around it.
@@ -512,7 +509,7 @@ pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
             }
         });
 }
-fn toolbar_file(app: &mut PdfCraftApp, ui: &mut egui::Ui, compact: bool) {
+fn toolbar_file(app: &mut PdfCraftApp, ui: &mut egui::Ui, _compact: bool) {
     let open = app.right.is_some() && (app.mode == Mode::Read || app.docking.exposed(crate::docking::Panel::Inspector));
     if icons::button(ui, "list-tree", 32.0, open, tl!("Toggle sidebar")).clicked() {
         let remembered = ui.data(|d| d.get_temp::<RightPanel>(egui::Id::new("navigation_selected"))).unwrap_or(RightPanel::Bookmarks);
@@ -521,7 +518,6 @@ fn toolbar_file(app: &mut PdfCraftApp, ui: &mut egui::Ui, compact: bool) {
         }
         app.choose_right_panel(if open { None } else { Some(remembered) });
     }
-    main_menu(app, ui, compact);
     ui.add_enabled_ui(app.active.is_some(), |ui| {
         if icons::button(ui, "search", 32.0, false, tl!("Find…")).clicked() {
             app.run_command("edit.find");
@@ -694,9 +690,9 @@ fn toolbar_actions(app: &mut PdfCraftApp, ui: &mut egui::Ui, compact: bool) {
     });
 }
 
-fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui, compact: bool) {
+fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui, button_size: f32) {
     let t = Tokens::get(ui.ctx());
-    let resp = toolbar_action(ui, "menu", tl!("Menu"), false, compact);
+    let resp = icons::button(ui, "menu", button_size, false, tl!("Menu"));
     egui::Popup::menu(&resp).show(|ui| {
         ui.set_min_width(230.0);
         ui.menu_button(tl!("File"), |ui| crate::commands::registry_menu(app, ui, "File"));

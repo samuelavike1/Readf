@@ -1,5 +1,7 @@
 # PdfCraft roadmap
 
+- **2026-10-19 (M3, title-row Menu):** Replaced the Home icon with the main Menu in the title row and removed the duplicate toolbar Menu. Document tabs and window controls keep their positions; the welcome screen remains available when no document is selected.
+
 - **2026-10-19 (M3, integrated Windows title bar):** The Home/tab row now replaces the Windows title bar by default, with rectangular minimize, maximize/restore and close controls at the right edge. Existing native drag/resize commands and unsaved-close protection are retained; Use system title bar remains available in Preferences. Regression coverage includes narrow tab overflow, double-click maximize/restore, window commands and cancelling a dirty close. Native light/dark and caption actions checked; the Windows hover Snap Layout flyout is not implemented.
 
 - **2026-10-19 (M3, bookmark search):** Replaced the cramped label/input/clear row with a full-width 34-point search field, inset Lucide search icon and an inline Clear action shown only for a query. Clearing restores typing focus; filtering and per-document state are preserved. Narrow-sidebar and keyboard regressions plus native light/dark review cover the change.

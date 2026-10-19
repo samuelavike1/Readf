@@ -400,14 +400,14 @@ fn the_integrated_title_bar_is_the_traffic_light_band() {
         app.open_bytes("band.pdf", None, FIXTURE.to_vec()).unwrap();
     });
     let band = 28.0;
-    for label in ["Home", "band.pdf", "Open", "Keyboard shortcuts"] {
+    for label in ["Menu", "band.pdf", "Open", "Keyboard shortcuts"] {
         let r = h.get_by_label(label).rect();
         assert!(r.top() >= 0.0 && r.bottom() <= band, "{label}: {r:?} inside the {band} pt title bar");
         assert!(r.height() >= 24.0, "{label}: {r:?} stays clickable");
     }
     // Content starts after the three lights (the last one ends 62 pt in) with a gap.
-    let home = h.get_by_label("Home").rect();
-    assert!(home.left() >= 62.0 + 4.0, "Home {home:?} clears the traffic lights");
+    let menu = h.get_by_label("Menu").rect();
+    assert!(menu.left() >= 62.0 + 4.0, "Menu {menu:?} clears the traffic lights");
 }
 
 #[test]
@@ -1210,7 +1210,8 @@ fn simple_reader_navigation_collapses_and_restores_the_selected_view() {
     assert!(h.query_by_label("All tools").is_none());
     assert!(h.query_by_label("Side panels").is_none());
     let toggle = h.get_by_label("Toggle sidebar").rect();
-    assert!(toggle.right() < h.get_by_label("Menu").rect().left());
+    assert!(h.get_by_label("Menu").rect().bottom() <= toggle.top(), "Menu belongs in the title row");
+    assert!(h.query_by_label("Home").is_none(), "the redundant welcome-screen button is removed");
     h.get_by_role_and_label(egui::accesskit::Role::Button, "Bookmarks").click();
     h.run_steps(3);
     assert_eq!(h.state().right, Some(RightPanel::Bookmarks));
