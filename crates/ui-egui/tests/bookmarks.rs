@@ -18,6 +18,7 @@ fn harness() -> Harness<'static, PdfCraftApp> {
     let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_cc| {
         let mut app = PdfCraftApp::new();
         app.set_option("language", "en").unwrap();
+        app.set_option("mode", "all").unwrap();
         app.open_bytes("pages.pdf", None, PAGES.to_vec()).expect("opens");
         app.set_option("left", "closed").unwrap();
         app.set_option("panel", "bookmarks").unwrap();
@@ -119,6 +120,40 @@ fn the_panel_keeps_its_width_while_the_pointer_moves() {
 }
 
 #[test]
+fn bookmark_search_fits_a_narrow_sidebar_and_clears_without_losing_focus() {
+    let mut h = harness();
+    h.state_mut().set_option("mode", "read").unwrap();
+    add(&mut h, "Introduction");
+    add(&mut h, "Results");
+    let panel_id = egui::Id::new("read_right_panel");
+    let mut panel = egui::containers::panel::PanelState::load(&h.ctx, panel_id).unwrap();
+    panel.outer_rect.max.x = panel.outer_rect.left() + 200.0;
+    h.ctx.data_mut(|data| data.insert_persisted(panel_id, panel));
+    h.run_steps(5);
+    let field = h.get_by_label("Search").rect();
+    assert!(field.height() >= 34.0, "search must have the shared input height: {field:?}");
+    assert!(h.query_by_label("Clear").is_none(), "an empty search needs no clear button");
+    let before = egui::containers::panel::PanelState::load(&h.ctx, panel_id).unwrap().outer_rect;
+    assert!(before.contains_rect(field), "search must fit the narrow sidebar");
+    assert!(field.width() >= before.width() - 40.0, "search should use the sidebar's content width: {field:?}");
+    h.get_by_label("Search").click();
+    h.run_steps(2);
+    h.get_by_label("Search").type_text("Intro");
+    h.run_steps(3);
+    assert!(h.query_by_label("Results").is_none());
+    assert!(field.contains_rect(h.get_by_label("Clear").rect()), "clear belongs inside the field");
+    h.get_by_label("Clear").click();
+    h.run_steps(3);
+    h.get_by_label("Results");
+    assert!(h.query_by_label("Clear").is_none());
+    h.get_by_label("Search").type_text("Results");
+    h.run_steps(3);
+    assert!(h.query_by_label("Introduction").is_none(), "clearing keeps keyboard focus in search");
+    let after = egui::containers::panel::PanelState::load(&h.ctx, panel_id).unwrap().outer_rect;
+    assert_eq!(after.width(), before.width(), "typing and clearing must not widen the sidebar");
+}
+
+#[test]
 fn escape_cancels_a_rename() {
     let mut h = harness();
     add(&mut h, "Keep");
@@ -133,7 +168,12 @@ fn escape_cancels_a_rename() {
 fn number_pages_dialog_labels_the_selected_pages() {
     let mut h = harness();
     h.state_mut().views[0].select_pages(&[0, 1]);
-    assert!(h.state_mut().execute("page.number"));
+    // Organize commands are intentionally absent from Readf. Exercise the retained
+    // dialog directly without restoring its entry point in the interface.
+    assert!(!h.state_mut().execute("page.number"));
+    h.state_mut().number_draft.from = 1;
+    h.state_mut().number_draft.to = 2;
+    h.state_mut().dialog = Some(pdfcraft_ui_egui::Dialog::NumberPages);
     h.run_steps(3);
     h.get_by_label("Number pages");
     h.get_by_value("1, 2, 3").click(); // the style menu

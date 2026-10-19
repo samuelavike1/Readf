@@ -576,21 +576,35 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 let search_id = egui::Id::new(("bookmark_search", id.0));
                 let mut bookmark_query = ui.data(|d| d.get_temp::<String>(search_id)).unwrap_or_default();
                 if panel == RightPanel::Bookmarks && !info.outline.is_empty() {
-                    ui.horizontal(|ui| {
-                        const CLEAR: f32 = 26.0;
-                        let label = ui.label(tl!("Search"));
+                    ui.scope(|ui| {
                         let previous = bookmark_query.clone();
-                        // The panel keeps whatever width its content used, so this row must fit
-                        // exactly: any overflow would widen the panel again on every repaint.
-                        let width = ui.available_width() - CLEAR - ui.spacing().item_spacing.x;
-                        let response = ui.add(egui::TextEdit::singleline(&mut bookmark_query).desired_width(width)).labelled_by(label.id);
+                        // Keep both icon slots inside the field, even when Clear is hidden,
+                        // so typing never resizes the sidebar or changes the text viewport.
+                        ui.visuals_mut().widgets.inactive.bg_stroke = egui::Stroke::new(1.0, t.border);
+                        let width = ui.available_width();
+                        let response = ui.add(
+                            egui::TextEdit::singleline(&mut bookmark_query)
+                                .id(search_id.with("input"))
+                                .hint_text(tl!("Search"))
+                                .margin(egui::Margin { left: 30, right: 34, top: 8, bottom: 8 })
+                                .min_size(vec2(0.0, 34.0))
+                                .desired_width(width),
+                        );
                         response.widget_info(|| {
                             let mut info = egui::WidgetInfo::text_edit(ui.is_enabled(), &previous, &bookmark_query, "");
                             info.label = Some(tl!("Search").to_string());
                             info
                         });
-                        if icons::button(ui, "x", CLEAR, false, tl!("Clear")).clicked() {
-                            bookmark_query.clear();
+                        let icon = egui::Rect::from_center_size(response.rect.left_center() + vec2(16.0, 0.0), vec2(16.0, 16.0));
+                        icons::paint(ui, icon, "search", 16.0, t.text_muted);
+                        if !bookmark_query.is_empty() {
+                            let clear = egui::Rect::from_center_size(response.rect.right_center() - vec2(17.0, 0.0), vec2(26.0, 26.0));
+                            ui.scope_builder(egui::UiBuilder::new().max_rect(clear).layout(Layout::left_to_right(Align::Center)), |ui| {
+                                if icons::button(ui, "x", 26.0, false, tl!("Clear")).clicked() {
+                                    bookmark_query.clear();
+                                    response.request_focus();
+                                }
+                            });
                         }
                     });
                     ui.data_mut(|d| d.insert_temp(search_id, bookmark_query.clone()));
