@@ -25,7 +25,7 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     let press = theme::Press::track(ui, &resp);
                     ui.painter().rect_filled(
                         rect,
-                        CornerRadius::same(8),
+                        CornerRadius::same(theme::RADIUS_CONTROL),
                         press.fill(t.accent, egui::Color32::from_rgb(185, 28, 28), egui::Color32::from_rgb(153, 27, 27)),
                     );
                     let label = ui.painter().layout_no_wrap(tl!("Open file").to_owned(), theme::medium(19.0), egui::Color32::WHITE);
@@ -66,9 +66,9 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     let hovered = ui.rect_contains_pointer(rect);
                     if hovered && press.hover < 0.04 && press.down < 0.04 {
                         // The remove button sits in the row, so the row response may not be hovered.
-                        ui.painter().rect_filled(rect, CornerRadius::same(8), t.hover);
+                        ui.painter().rect_filled(rect, CornerRadius::same(theme::RADIUS_CONTROL), t.hover);
                     } else {
-                        press.wash(ui, rect, 8, false);
+                        press.wash(ui, rect, theme::RADIUS_CONTROL, false);
                     }
                     {
                         // Remove just this file from the list (#430); the file itself is untouched.
@@ -77,7 +77,7 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         let label = crate::i18n::fmt(tl!("Remove {name} from Recent"), &[("name", &r.name)]);
                         x.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &label));
                         if x.hovered() {
-                            ui.painter().rect_filled(x_rect, CornerRadius::same(6), t.pressed);
+                            ui.painter().rect_filled(x_rect, CornerRadius::same(theme::RADIUS_CONTROL), t.pressed);
                         }
                         if hovered || resp.has_focus() || x.has_focus() {
                             icons::paint(ui, x_rect.shrink(6.0), "x", 16.0, t.icon);

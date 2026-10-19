@@ -605,7 +605,7 @@ fn choose(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
             } else {
                 Color32::TRANSPARENT
             };
-            ui.painter().rect_filled(rect, CornerRadius::same(6), fill);
+            ui.painter().rect_filled(rect, CornerRadius::same(theme::RADIUS_CONTROL), fill);
             // An unusable ID is greyed, with the reason where the issuer would be.
             let (icon, name_color) = if usable { (t.accent, t.text) } else { (t.text_muted, t.text_muted) };
             icons::paint(ui, Rect::from_min_size(rect.min + vec2(10.0, 15.0), vec2(20.0, 20.0)), "badge-check", 18.0, icon);
@@ -827,7 +827,7 @@ fn preview(
 ) {
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 96.0), egui::Sense::hover());
     let bg = if t.dark() { Color32::from_gray(0xF4) } else { Color32::WHITE };
-    ui.painter().rect(rect, CornerRadius::same(4), bg, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    ui.painter().rect(rect, CornerRadius::same(theme::RADIUS_CONTROL), bg, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     let inner = rect.shrink(10.0);
     let a = &d.appearance;
     let mut lines = Vec::new();

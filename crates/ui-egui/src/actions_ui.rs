@@ -243,17 +243,20 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
     ui.horizontal_top(|ui| {
         ui.vertical(|ui| {
             ui.set_width(220.0);
-            egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(6)).show(ui, |ui| {
-                ui.set_width(208.0);
-                ui.set_min_height(260.0);
-                for a in &actions {
-                    let on = app.wizard.selected.as_deref() == Some(a.name.as_str());
-                    let name = if a.builtin { tl!(&a.name) } else { &a.name };
-                    if ui.selectable_label(on, name).clicked() {
-                        app.wizard.selected = Some(a.name.clone());
+            egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::same(6)).show(
+                ui,
+                |ui| {
+                    ui.set_width(208.0);
+                    ui.set_min_height(260.0);
+                    for a in &actions {
+                        let on = app.wizard.selected.as_deref() == Some(a.name.as_str());
+                        let name = if a.builtin { tl!(&a.name) } else { &a.name };
+                        if ui.selectable_label(on, name).clicked() {
+                            app.wizard.selected = Some(a.name.clone());
+                        }
                     }
-                }
-            });
+                },
+            );
         });
         ui.vertical(|ui| {
             let Some(a) = actions.iter().find(|a| app.wizard.selected.as_deref() == Some(a.name.as_str())) else { return };
@@ -316,27 +319,30 @@ fn edit_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     ui.add_space(6.0);
     ui.label(egui::RichText::new(tl!("Steps")).font(theme::semibold(13.0)));
     let mut remove = None;
-    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        if a.steps.is_empty() {
-            ui.label(egui::RichText::new(tl!("Add the steps this action runs, in order.")).color(t.text_muted));
-        }
-        for (i, s) in a.steps.iter_mut().enumerate() {
-            ui.push_id(i, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(format!("{}. {}", i + 1, tl!(s.label())));
-                    if let Some(arg) = s.arg_mut() {
-                        ui.add(crate::widgets::line(arg).desired_width(220.0));
-                    }
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ui.button(tl!("Remove")).clicked() {
-                            remove = Some(i);
+    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::same(8)).show(
+        ui,
+        |ui| {
+            ui.set_width(ui.available_width());
+            if a.steps.is_empty() {
+                ui.label(egui::RichText::new(tl!("Add the steps this action runs, in order.")).color(t.text_muted));
+            }
+            for (i, s) in a.steps.iter_mut().enumerate() {
+                ui.push_id(i, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{}. {}", i + 1, tl!(s.label())));
+                        if let Some(arg) = s.arg_mut() {
+                            ui.add(crate::widgets::line(arg).desired_width(220.0));
                         }
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            if ui.button(tl!("Remove")).clicked() {
+                                remove = Some(i);
+                            }
+                        });
                     });
                 });
-            });
-        }
-    });
+            }
+        },
+    );
     if let Some(i) = remove {
         a.steps.remove(i);
     }

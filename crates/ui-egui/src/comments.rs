@@ -1191,7 +1191,7 @@ pub(crate) fn composer(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, 
     };
     let pos = pos2(anchor.x + 12.0, anchor.y);
     egui::Area::new(egui::Id::new(("comment-composer", view.id.0))).order(egui::Order::Foreground).fixed_pos(pos).show(ctx, |ui| {
-        egui::Frame::popup(ui.style()).inner_margin(egui::Margin::same(12)).corner_radius(CornerRadius::same(8)).show(ui, |ui| {
+        egui::Frame::popup(ui.style()).inner_margin(egui::Margin::same(12)).corner_radius(CornerRadius::same(theme::RADIUS_SURFACE)).show(ui, |ui| {
             ui.set_width(260.0);
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(crate::bidi::visual_auto(&prefs.author)).font(theme::semibold(13.0)));
@@ -1221,14 +1221,16 @@ pub(crate) fn composer(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, 
                     if ui
                         .add_enabled(
                             can_post,
-                            egui::Button::new(egui::RichText::new(tl!("Post")).color(Color32::WHITE)).fill(t.accent).corner_radius(14),
+                            egui::Button::new(egui::RichText::new(tl!("Post")).color(Color32::WHITE))
+                                .fill(t.accent)
+                                .corner_radius(theme::RADIUS_CONTROL),
                         )
                         .clicked()
                         || (enter && can_post)
                     {
                         post = true;
                     }
-                    if ui.add(egui::Button::new(tl!("Cancel")).corner_radius(14)).clicked() {
+                    if ui.add(egui::Button::new(tl!("Cancel")).corner_radius(theme::RADIUS_CONTROL)).clicked() {
                         cancel = true;
                     }
                 });
@@ -1682,7 +1684,7 @@ fn fill_button(ui: &mut egui::Ui, fill: Option<Rgb>) -> egui::Response {
     }
     ui.painter().rect_stroke(sq, 2.0, edge, egui::StrokeKind::Inside);
     if resp.hovered() {
-        ui.painter().rect_stroke(r.shrink(2.0), 6.0, Stroke::new(1.0, Color32::from_black_alpha(40)), egui::StrokeKind::Inside);
+        ui.painter().rect_stroke(r.shrink(2.0), theme::RADIUS_CONTROL, Stroke::new(1.0, Color32::from_black_alpha(40)), egui::StrokeKind::Inside);
     }
     let label = match fill {
         Some(_) => tl!("Fill colour"),

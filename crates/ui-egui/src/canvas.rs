@@ -3656,7 +3656,7 @@ fn find_bar(view: &mut DocView, pages: usize, area: Rect, ui: &mut egui::Ui, t: 
             egui::Frame::NONE
                 .fill(t.card)
                 .stroke(Stroke::new(1.0, t.border))
-                .corner_radius(CornerRadius::same(8))
+                .corner_radius(CornerRadius::same(theme::RADIUS_SURFACE))
                 .shadow(egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(if t.dark() { 90 } else { 30 }) })
                 .inner_margin(egui::Margin::same(10))
                 .show(ui, |ui| {
@@ -3952,7 +3952,7 @@ fn quick_bar(app: &mut PdfCraftApp, area: Rect, ui: &mut egui::Ui) {
         egui::Frame::NONE
             .fill(t.card)
             .stroke(Stroke::new(1.0, t.border))
-            .corner_radius(CornerRadius::same(12))
+            .corner_radius(CornerRadius::same(theme::RADIUS_SURFACE))
             .shadow(egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(if t.dark() { 100 } else { 28 }) })
             .inner_margin(egui::Margin::same(6))
             .show(ui, |ui| {
@@ -3979,7 +3979,7 @@ fn quick_bar(app: &mut PdfCraftApp, area: Rect, ui: &mut egui::Ui) {
                                     let on = app.quick_tool == QuickTool::Comment(*tool);
                                     let (row, click) = ui.allocate_exact_size(vec2(180.0, 28.0), Sense::click());
                                     let press = theme::Press::track(ui, &click);
-                                    press.wash(ui, row, 4, on);
+                                    press.wash(ui, row, theme::RADIUS_CONTROL, on);
                                     let body = row.translate(press.offset());
                                     icons::paint(ui, Rect::from_min_size(body.min + vec2(8.0, 6.0), vec2(16.0, 16.0)), tool.icon(), 16.0, t.text);
                                     let reserve = if on { 28.0 } else { 8.0 };
@@ -4029,7 +4029,7 @@ fn quick_bar(app: &mut PdfCraftApp, area: Rect, ui: &mut egui::Ui) {
                                     let on = fill_tool == tool;
                                     let (row, click) = ui.allocate_exact_size(vec2(180.0, 28.0), Sense::click());
                                     let press = theme::Press::track(ui, &click);
-                                    press.wash(ui, row, 4, on);
+                                    press.wash(ui, row, theme::RADIUS_CONTROL, on);
                                     let body = row.translate(press.offset());
                                     icons::paint(ui, Rect::from_min_size(body.min + vec2(8.0, 6.0), vec2(16.0, 16.0)), tool.icon(), 16.0, t.text);
                                     let reserve = if on { 28.0 } else { 8.0 };
@@ -4341,10 +4341,19 @@ fn organize_grid(view: &mut DocView, info: &DocInfo, editable: bool, dirty: bool
                 let pr = Rect::from_center_size(pos2(c.center().x, c.top() + 16.0 + size.y / 2.0), size);
                 let selected = view.selected.contains(&i) || (view.selected.is_empty() && i == view.current);
                 if selected || resp.hovered() {
-                    ui.painter().rect_filled(c.shrink(6.0), CornerRadius::same(8), if selected { t.accent_soft } else { t.hover });
+                    ui.painter().rect_filled(
+                        c.shrink(6.0),
+                        CornerRadius::same(theme::RADIUS_SURFACE),
+                        if selected { t.accent_soft } else { t.hover },
+                    );
                 }
                 if view.selected.contains(&i) {
-                    ui.painter().rect_stroke(c.shrink(6.0), CornerRadius::same(8), Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+                    ui.painter().rect_stroke(
+                        c.shrink(6.0),
+                        CornerRadius::same(theme::RADIUS_SURFACE),
+                        Stroke::new(1.5, t.accent),
+                        egui::StrokeKind::Inside,
+                    );
                 }
                 ui.painter().rect_filled(pr.translate(vec2(0.0, 1.5)), CornerRadius::same(1), t.page_shadow);
                 ui.painter().rect_filled(pr, CornerRadius::ZERO, Color32::WHITE);
@@ -4517,7 +4526,7 @@ fn organize_grid(view: &mut DocView, info: &DocInfo, editable: bool, dirty: bool
     view.grid_gap = pointer.filter(|_| editable && view.org_drag.is_none()).and_then(|p| drop_gap(&cells, p));
     if editable && ui.input(|i| !i.raw.hovered_files.is_empty()) {
         let painter = ui.painter().with_clip_rect(viewport);
-        painter.rect_stroke(viewport.shrink(2.0), CornerRadius::same(6), Stroke::new(2.0, t.accent), egui::StrokeKind::Inside);
+        painter.rect_stroke(viewport.shrink(2.0), CornerRadius::same(theme::RADIUS_CONTROL), Stroke::new(2.0, t.accent), egui::StrokeKind::Inside);
         if let Some(gap) = view.grid_gap {
             let at = cells.iter().find(|(i, _)| *i == gap).map(|(_, r)| (r.left() + 3.0, r.y_range()));
             if let Some((x, row)) = at.or(cells.last().map(|(_, r)| (r.right() - 3.0, r.y_range()))) {

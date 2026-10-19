@@ -4,7 +4,7 @@
 use egui::{Align, Layout};
 use pdfcraft_engine::pdfa::{Issue, Level};
 
-use crate::theme::Tokens;
+use crate::theme::{self, Tokens};
 use crate::{PdfCraftApp, widgets};
 
 /// The dialog's state: the chosen level and the last result.
@@ -73,30 +73,33 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
         app.pdfa.issues = None;
     }
     ui.add_space(6.0);
-    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
-            ui.set_min_height(120.0);
-            match &app.pdfa.issues {
-                None => {
-                    ui.label(egui::RichText::new(tl!("Verify to see what the document needs.")).color(t.text_muted));
-                }
-                Some(v) if v.is_empty() => {
-                    ui.label(crate::i18n::fmt(tl!("No problems found: the document conforms to {level}."), &[("level", app.pdfa.level.label())]));
-                }
-                Some(v) => {
-                    for i in v {
-                        let page = i.page.map(|p| crate::i18n::fmt(tl!(" (page {p})"), &[("p", &(p + 1).to_string())])).unwrap_or_default();
-                        let fix = if i.fixable { String::new() } else { tl!("  · not fixable here").to_string() };
-                        // The verifier hands the wording over whole, with the document's own name
-                        // apart from it, so the problem reads in this language and the name as it is.
-                        ui.label(format!("{}{page}", i.said(&crate::i18n::words)));
-                        ui.label(egui::RichText::new(format!("ISO 19005 {}{fix}", i.clause)).small().color(t.text_muted));
+    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::same(8)).show(
+        ui,
+        |ui| {
+            ui.set_width(ui.available_width());
+            egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
+                ui.set_min_height(120.0);
+                match &app.pdfa.issues {
+                    None => {
+                        ui.label(egui::RichText::new(tl!("Verify to see what the document needs.")).color(t.text_muted));
+                    }
+                    Some(v) if v.is_empty() => {
+                        ui.label(crate::i18n::fmt(tl!("No problems found: the document conforms to {level}."), &[("level", app.pdfa.level.label())]));
+                    }
+                    Some(v) => {
+                        for i in v {
+                            let page = i.page.map(|p| crate::i18n::fmt(tl!(" (page {p})"), &[("p", &(p + 1).to_string())])).unwrap_or_default();
+                            let fix = if i.fixable { String::new() } else { tl!("  · not fixable here").to_string() };
+                            // The verifier hands the wording over whole, with the document's own name
+                            // apart from it, so the problem reads in this language and the name as it is.
+                            ui.label(format!("{}{page}", i.said(&crate::i18n::words)));
+                            ui.label(egui::RichText::new(format!("ISO 19005 {}{fix}", i.clause)).small().color(t.text_muted));
+                        }
                     }
                 }
-            }
-        });
-    });
+            });
+        },
+    );
     ui.add_space(10.0);
     let mut close = false;
     let mut action = None;

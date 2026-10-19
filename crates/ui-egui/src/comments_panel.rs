@@ -270,7 +270,7 @@ fn card(
     let mut more_rect = None;
     let frame = egui::Frame::NONE
         .fill(fill)
-        .corner_radius(CornerRadius::same(6))
+        .corner_radius(CornerRadius::same(theme::RADIUS_CONTROL))
         .inner_margin(egui::Margin { left: 10, right: 8, top: 10, bottom: 10 })
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
@@ -390,7 +390,7 @@ fn card(
     let rect = frame.response.rect;
     if selected {
         let bar = egui::Rect::from_min_size(rect.min, vec2(4.0, rect.height()));
-        ui.painter().rect_filled(bar, CornerRadius { nw: 6, sw: 6, ne: 0, se: 0 }, t.accent);
+        ui.painter().rect_filled(bar, CornerRadius { nw: theme::RADIUS_CONTROL, sw: theme::RADIUS_CONTROL, ne: 0, se: 0 }, t.accent);
         if std::mem::take(&mut view.comments.reveal) {
             frame.response.scroll_to_me(Some(Align::Center));
         }

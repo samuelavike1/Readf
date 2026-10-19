@@ -5,7 +5,7 @@
 use egui::{Align2, Color32, CornerRadius, Pos2, Rect, Shape, Stroke, vec2};
 
 use crate::canvas::{DocView, PageXform, ViewAction};
-use crate::theme::Tokens;
+use crate::theme::{self, Tokens};
 pub use pdfcraft_engine::camera_clean::Look;
 
 /// How far in from the page's edges the corners start, as a share of its size.
@@ -149,7 +149,7 @@ pub(crate) fn bar(ctx: &egui::Context, view: &mut DocView, area: Rect, t: &Token
             egui::Frame::NONE
                 .fill(t.card)
                 .stroke(Stroke::new(1.0, t.border))
-                .corner_radius(CornerRadius::same(10))
+                .corner_radius(CornerRadius::same(theme::RADIUS_SURFACE))
                 .shadow(egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(if t.dark() { 90 } else { 30 }) })
                 .inner_margin(egui::Margin::symmetric(12, 8))
                 .show(ui, |ui| {

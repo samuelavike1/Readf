@@ -434,7 +434,7 @@ fn tab(
             press.fill(Color32::TRANSPARENT, t.hover, t.pressed)
         };
         if bg.a() > 0 {
-            ui.painter().rect_filled(rect, CornerRadius { nw: 7, ne: 7, sw: 0, se: 0 }, bg);
+            ui.painter().rect_filled(rect, CornerRadius { nw: theme::RADIUS_CONTROL, ne: theme::RADIUS_CONTROL, sw: 0, se: 0 }, bg);
         }
         icons::paint(
             ui,
@@ -448,7 +448,7 @@ fn tab(
     let x_rect = Rect::from_center_size(rect.right_center() - vec2(16.0, 0.0), vec2(20.0, 20.0));
     let x = ui.interact(x_rect, id.with("close"), Sense::click());
     let x_press = theme::Press::track(ui, &x);
-    x_press.wash(ui, x_rect, 4, false);
+    x_press.wash(ui, x_rect, theme::RADIUS_CONTROL, false);
     // Unsaved changes: a dot where the close button sits, until the tab is hovered.
     if dirty && !resp.hovered() && !x.hovered() {
         ui.painter().circle_filled(x_rect.center(), 4.0, if active { t.text } else { t.text_muted });
@@ -564,7 +564,7 @@ fn toolbar_action(ui: &mut egui::Ui, icon: &str, label: &str, selected: bool, co
     ui.ctx().accesskit_node_builder(response.id, |node| node.set_selected(selected));
     if selected {
         let t = Tokens::get(ui.ctx());
-        ui.painter().set(background, egui::Shape::rect_filled(response.rect, CornerRadius::same(6), t.selected));
+        ui.painter().set(background, egui::Shape::rect_filled(response.rect, CornerRadius::same(theme::RADIUS_CONTROL), t.selected));
     }
     response
 }
@@ -576,7 +576,7 @@ fn tool_menu_row(ui: &mut egui::Ui, icon: &str, label: &str) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click());
     response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
     let press = theme::Press::track(ui, &response);
-    press.wash(ui, rect, 6, false);
+    press.wash(ui, rect, theme::RADIUS_CONTROL, false);
     let body = rect.translate(press.offset());
     icons::paint(ui, Rect::from_min_size(body.min + vec2(8.0, 6.0), vec2(18.0, 18.0)), icon, 17.0, t.icon);
     ui.painter().text(body.left_center() + vec2(34.0, 0.0), Align2::LEFT_CENTER, label, theme::medium(13.0), t.text);

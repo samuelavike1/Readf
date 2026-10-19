@@ -81,10 +81,13 @@ pub(crate) fn options_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
     ui.add_space(8.0);
     let group = |ui: &mut egui::Ui, title: &str, body: &mut dyn FnMut(&mut egui::Ui)| {
         ui.label(egui::RichText::new(tl!(title)).font(theme::semibold(13.0)));
-        egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(10)).show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            body(ui);
-        });
+        egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::same(10)).show(
+            ui,
+            |ui| {
+                ui.set_width(ui.available_width());
+                body(ui);
+            },
+        );
         ui.add_space(8.0);
     };
     group(ui, "Report Options", &mut |ui| {
@@ -569,20 +572,23 @@ pub(crate) fn alt_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> 
             .color(t.text_muted),
     );
     ui.add_space(6.0);
-    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
-        let (area, _) = ui.allocate_exact_size(egui::vec2(380.0, 220.0), egui::Sense::hover());
-        match &d.preview {
-            Some((_, tex)) => {
-                let s = tex.size_vec2();
-                let k = (area.width() / s.x).min(area.height() / s.y).min(2.0);
-                let fit = egui::Rect::from_center_size(area.center(), s * k);
-                ui.painter().image(tex.id(), fit, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::same(8)).show(
+        ui,
+        |ui| {
+            let (area, _) = ui.allocate_exact_size(egui::vec2(380.0, 220.0), egui::Sense::hover());
+            match &d.preview {
+                Some((_, tex)) => {
+                    let s = tex.size_vec2();
+                    let k = (area.width() / s.x).min(area.height() / s.y).min(2.0);
+                    let fit = egui::Rect::from_center_size(area.center(), s * k);
+                    ui.painter().image(tex.id(), fit, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+                }
+                None => {
+                    ui.painter().text(area.center(), egui::Align2::CENTER_CENTER, tl!("No preview"), theme::regular(13.0), t.text_faint);
+                }
             }
-            None => {
-                ui.painter().text(area.center(), egui::Align2::CENTER_CENTER, tl!("No preview"), theme::regular(13.0), t.text_faint);
-            }
-        }
-    });
+        },
+    );
     ui.add_space(8.0);
     ui.add_enabled_ui(!d.decorative[i], |ui| {
         let l = ui.label(tl!("Alternate text"));

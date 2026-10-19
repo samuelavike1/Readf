@@ -91,7 +91,7 @@ fn options(ui: &mut egui::Ui, d: &mut OcrDraft, pages: usize, available: bool, t
         egui::Frame::new()
             .stroke(egui::Stroke::new(1.0, t.border))
             .fill(t.card)
-            .corner_radius(egui::CornerRadius::same(6))
+            .corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL))
             .inner_margin(egui::Margin::same(12))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());

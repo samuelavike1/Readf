@@ -1486,27 +1486,30 @@ fn actions_tab(ui: &mut egui::Ui, d: &mut FieldDraft, t: &crate::theme::Tokens) 
     }
     ui.add_space(8.0);
     ui.label(egui::RichText::new(tl!("Actions")).font(theme::semibold(13.0)));
-    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        if d.actions.is_empty() {
-            ui.label(egui::RichText::new(tl!("No actions")).color(t.text_muted));
-        }
-        let mut remove = None;
-        for (i, (tr, act)) in d.actions.iter().enumerate() {
-            ui.horizontal(|ui| {
-                ui.label(egui::RichText::new(tl!(tr.label())).strong());
-                ui.label(act.describe());
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.push_id(i, |ui| ui.button(tl!("Delete"))).inner.clicked() {
-                        remove = Some(i);
-                    }
+    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::same(8)).show(
+        ui,
+        |ui| {
+            ui.set_width(ui.available_width());
+            if d.actions.is_empty() {
+                ui.label(egui::RichText::new(tl!("No actions")).color(t.text_muted));
+            }
+            let mut remove = None;
+            for (i, (tr, act)) in d.actions.iter().enumerate() {
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(tl!(tr.label())).strong());
+                    ui.label(act.describe());
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.push_id(i, |ui| ui.button(tl!("Delete"))).inner.clicked() {
+                            remove = Some(i);
+                        }
+                    });
                 });
-            });
-        }
-        if let Some(i) = remove {
-            d.actions.remove(i);
-        }
-    });
+            }
+            if let Some(i) = remove {
+                d.actions.remove(i);
+            }
+        },
+    );
 }
 
 fn calculate_tab(ui: &mut egui::Ui, d: &mut FieldDraft, t: &crate::theme::Tokens) {

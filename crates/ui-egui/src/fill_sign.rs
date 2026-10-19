@@ -9,7 +9,7 @@ use pdfcraft_engine::{Edit, FillMark, NewAnnotation, PhotoRect, Shape, Signature
 use pdfcraft_render::{DocInfo, PageInfo};
 
 use crate::canvas::{DocView, PageXform};
-use crate::theme::Tokens;
+use crate::theme::{self, Tokens};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FillTool {
@@ -529,10 +529,10 @@ pub(crate) fn signature_entries(ui: &mut egui::Ui, app: &mut crate::PdfCraftApp,
             let use_label = label("Use {what}");
             response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, use_label.clone()));
             let painter = ui.painter_at(rect);
-            painter.rect_filled(rect, CornerRadius::same(4), Color32::WHITE);
+            painter.rect_filled(rect, CornerRadius::same(theme::RADIUS_CONTROL), Color32::WHITE);
             painter.rect_stroke(
                 rect,
-                CornerRadius::same(4),
+                CornerRadius::same(theme::RADIUS_CONTROL),
                 Stroke::new(1.0, if response.hovered() { t.accent } else { t.border }),
                 egui::StrokeKind::Inside,
             );
@@ -771,8 +771,8 @@ pub(crate) fn signature_pad(
         ui.label(egui::RichText::new(tl!("Choose a PNG or JPEG image (up to 4 MiB). Transparency is preserved.")).color(t.text_muted));
         let browse = crate::widgets::ghost_button(ui, "folder", tl!("Browse…")).clicked();
         let (rect, _) = ui.allocate_exact_size(vec2(460.0, 150.0), Sense::hover());
-        ui.painter().rect_filled(rect, CornerRadius::same(6), Color32::WHITE);
-        ui.painter().rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+        ui.painter().rect_filled(rect, CornerRadius::same(theme::RADIUS_CONTROL), Color32::WHITE);
+        ui.painter().rect_stroke(rect, CornerRadius::same(theme::RADIUS_CONTROL), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
         if let Some(image) = &d.image {
             image_preview(ui, rect.shrink(8.0), image, preview);
         }
@@ -790,8 +790,8 @@ pub(crate) fn signature_pad(
         .labelled_by(l.id);
         let (rect, _) = ui.allocate_exact_size(vec2(460.0, 150.0), Sense::hover());
         let painter = ui.painter_at(rect);
-        painter.rect_filled(rect, CornerRadius::same(6), Color32::WHITE);
-        painter.rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+        painter.rect_filled(rect, CornerRadius::same(theme::RADIUS_CONTROL), Color32::WHITE);
+        painter.rect_stroke(rect, CornerRadius::same(theme::RADIUS_CONTROL), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
         let key = SavedSig::Typed(d.text.clone());
         if preview.as_ref().is_none_or(|(s, _)| *s != key) {
             let img = script_preview(&d.text, 920, 300);
@@ -807,8 +807,8 @@ pub(crate) fn signature_pad(
     let strokes = &mut d.strokes;
     let (rect, resp) = ui.allocate_exact_size(vec2(460.0, 150.0), Sense::drag());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, CornerRadius::same(6), Color32::WHITE);
-    painter.rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    painter.rect_filled(rect, CornerRadius::same(theme::RADIUS_CONTROL), Color32::WHITE);
+    painter.rect_stroke(rect, CornerRadius::same(theme::RADIUS_CONTROL), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     painter.hline(rect.x_range().shrink(24.0), rect.bottom() - 34.0, Stroke::new(1.0, t.divider));
     // Normalised: x 0–1 across the pad, y up, in units of the pad's width.
     let norm = |p: Pos2| [(p.x - rect.left()) / rect.width(), (rect.bottom() - p.y) / rect.width()];
@@ -860,8 +860,8 @@ fn scan_tab(
     });
     let (area, resp) = ui.allocate_exact_size(vec2(460.0, 230.0), Sense::drag());
     let painter = ui.painter_at(area);
-    painter.rect_filled(area, CornerRadius::same(6), t.pasteboard);
-    painter.rect_stroke(area, CornerRadius::same(6), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    painter.rect_filled(area, CornerRadius::same(theme::RADIUS_CONTROL), t.pasteboard);
+    painter.rect_stroke(area, CornerRadius::same(theme::RADIUS_CONTROL), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     if let Some(scan) = d.scan.as_mut() {
         scan.poll(&mut d.image, Some(ui.ctx()));
     }
@@ -988,8 +988,8 @@ fn scan_tab(
     });
     ui.add_space(4.0);
     let (rect, _) = ui.allocate_exact_size(vec2(460.0, 110.0), Sense::hover());
-    ui.painter().rect_filled(rect, CornerRadius::same(6), Color32::WHITE);
-    ui.painter().rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    ui.painter().rect_filled(rect, CornerRadius::same(theme::RADIUS_CONTROL), Color32::WHITE);
+    ui.painter().rect_stroke(rect, CornerRadius::same(theme::RADIUS_CONTROL), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     if let Some(image) = &d.image {
         image_preview(ui, rect.shrink(8.0), image, preview);
     } else if let Some(problem) = &scan.problem {

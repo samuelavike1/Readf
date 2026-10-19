@@ -8,7 +8,7 @@ use pdfcraft_engine::{Added, AddedContent, AddedText, Edit, FontFamily, TextAlig
 use pdfcraft_render::DocInfo;
 
 use crate::canvas::{DocView, PageXform};
-use crate::theme::Tokens;
+use crate::theme::{self, Tokens};
 use crate::widgets;
 
 /// The colour of the warning under text the standard fonts can't draw.
@@ -494,7 +494,7 @@ pub(crate) fn editor(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, ad
             let buttons = egui::Frame::NONE
                 .fill(tokens.card)
                 .stroke(Stroke::new(1.0, tokens.border))
-                .corner_radius(CornerRadius::same(6))
+                .corner_radius(CornerRadius::same(theme::RADIUS_CONTROL))
                 .inner_margin(2)
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing = egui::vec2(2.0, 2.0);

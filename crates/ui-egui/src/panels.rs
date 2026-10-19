@@ -89,7 +89,7 @@ fn tool_row(ui: &mut egui::Ui, t: &Tokens, g: &ToolGroup) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 34.0), Sense::click());
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tl!(g.label)));
     let press = theme::Press::track(ui, &resp);
-    press.wash(ui, rect, 6, false);
+    press.wash(ui, rect, theme::RADIUS_CONTROL, false);
     let body = rect.translate(press.offset());
     icons::paint(ui, Rect::from_min_size(body.min + vec2(6.0, 7.0), vec2(20.0, 20.0)), g.icon, 19.0, t.icon);
     let right_reserved = match (g.badge, g.availability) {
@@ -108,7 +108,7 @@ fn tool_row(ui: &mut egui::Ui, t: &Tokens, g: &ToolGroup) -> egui::Response {
             let badge = tl!(b);
             let w = ui.fonts_mut(|f| f.layout_no_wrap(badge.to_string(), font.clone(), Color32::WHITE).size().x);
             let r = Rect::from_center_size(body.right_center() - vec2(w / 2.0 + 10.0, 0.0), vec2(w + 10.0, 16.0));
-            ui.painter().rect_filled(r, CornerRadius::same(4), t.badge_new);
+            ui.painter().rect_filled(r, CornerRadius::same(theme::RADIUS_CONTROL), t.badge_new);
             ui.painter().text(r.center(), Align2::CENTER_CENTER, badge, font, Color32::WHITE);
         }
         // Planned tools: a quiet milestone hint instead of a chip, so the list stays calm.
@@ -198,7 +198,7 @@ fn tool_detail(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens, g: &'static
                 resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tl!(item.label)));
                 let ready = item.availability == Availability::Ready;
                 let press = theme::Press::track(ui, &resp);
-                press.wash(ui, rect, 6, false);
+                press.wash(ui, rect, theme::RADIUS_CONTROL, false);
                 let body = rect.translate(press.offset());
                 let fg = if ready { t.text } else { t.text_muted };
                 icons::paint(
@@ -220,7 +220,7 @@ fn tool_detail(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens, g: &'static
                 let label_right = if ready { body.right() - 8.0 } else { r.left() - 8.0 };
                 row_label(ui, tl!(item.label), theme::regular(13.0), fg, body.left_center() + vec2(34.0, 0.0), label_right - body.left() - 34.0);
                 if !ready {
-                    ui.painter().rect_filled(r, CornerRadius::same(4), fill);
+                    ui.painter().rect_filled(r, CornerRadius::same(theme::RADIUS_CONTROL), fill);
                     ui.painter().text(r.center(), Align2::CENTER_CENTER, chip_label, font, cfg);
                 }
                 if theme::hand(resp).on_hover_text(tl!(item.label)).clicked() {
@@ -280,7 +280,7 @@ fn stamp_palette(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
                 let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 38.0), Sense::click());
                 resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, active, kind.label()));
                 let press = theme::Press::track(ui, &resp);
-                press.wash(ui, rect, 6, active);
+                press.wash(ui, rect, theme::RADIUS_CONTROL, active);
                 let body = rect.translate(press.offset());
                 let [r, g, b] = kind.color().map(|v| (v * 255.0) as u8);
                 let col = Color32::from_rgb(r, g, b);
@@ -306,7 +306,13 @@ fn stamp_palette(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
                         Color32::WHITE,
                     );
                 } else {
-                    ui.painter().rect(chip, CornerRadius::same(5), col.gamma_multiply(0.1), Stroke::new(1.5, col), egui::StrokeKind::Inside);
+                    ui.painter().rect(
+                        chip,
+                        CornerRadius::same(theme::RADIUS_CONTROL),
+                        col.gamma_multiply(0.1),
+                        Stroke::new(1.5, col),
+                        egui::StrokeKind::Inside,
+                    );
                     let y = if group == StampGroup::Dynamic { chip.center().y - 4.0 } else { chip.center().y };
                     let font = theme::semibold(11.0);
                     let shown = crate::widgets::fit_line(kind.label(), (chip.width() - 10.0).max(0.0), |s| crate::widgets::text_width(ui, s, &font));
@@ -668,7 +674,7 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                             let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::click());
                             resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Checkbox, true, l.visible, &l.name));
                             let press = theme::Press::track(ui, &resp);
-                            press.wash(ui, rect, 6, false);
+                            press.wash(ui, rect, theme::RADIUS_CONTROL, false);
                             let body = rect.translate(press.offset());
                             icons::paint(
                                 ui,
@@ -970,7 +976,7 @@ fn outline_item(ui: &mut egui::Ui, t: &Tokens, info: &DocInfo, item: &OutlineIte
         let h = (galley.size().y + 12.0).max(28.0);
         let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h), Sense::click());
         resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &item.title));
-        theme::Press::track(ui, &resp).wash(ui, rect, 6, false);
+        theme::Press::track(ui, &resp).wash(ui, rect, theme::RADIUS_CONTROL, false);
         let x0 = rect.left() + indent;
         if !item.children.is_empty() {
             let tri = Rect::from_min_size(pos2(x0, rect.top() + 6.0), vec2(16.0, 16.0));
@@ -1081,9 +1087,9 @@ fn pages(ui: &mut egui::Ui, t: &Tokens, info: &DocInfo, view: &mut crate::DocVie
             // The current page keeps its heavier border; picked pages share its fill.
             let selected = i == view.current;
             let press = theme::Press::track(ui, &resp);
-            press.wash(ui, rect, 8, selected || picked);
+            press.wash(ui, rect, theme::RADIUS_CONTROL, selected || picked);
             if picked {
-                ui.painter().rect_stroke(rect, CornerRadius::same(8), Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+                ui.painter().rect_stroke(rect, CornerRadius::same(theme::RADIUS_CONTROL), Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
             }
             let pr = rect.translate(press.offset()).shrink(8.0);
             ui.painter().rect_filled(pr, CornerRadius::ZERO, Color32::WHITE);
@@ -1296,7 +1302,7 @@ fn fields(
             let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
             resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, selected, &f.name));
             let press = theme::Press::track(ui, &resp);
-            press.wash(ui, rect, 6, selected);
+            press.wash(ui, rect, theme::RADIUS_CONTROL, selected);
             let body = rect.translate(press.offset());
             icons::paint(ui, Rect::from_min_size(body.min + vec2(8.0, 7.0), vec2(16.0, 16.0)), icon, 15.0, Color32::from_rgb(0x8E, 0x4E, 0xE6));
             let value =
@@ -1327,7 +1333,7 @@ fn fields(
                     let b = ui.interact(r, ui.id().with((&f.name, earlier)), Sense::click());
                     b.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, format!("{tip}: {}", f.name)));
                     let bpress = theme::Press::track(ui, &b);
-                    bpress.wash(ui, r, 4, false);
+                    bpress.wash(ui, r, theme::RADIUS_CONTROL, false);
                     icons::paint(ui, r.shrink(3.0).translate(bpress.offset()), icon, 15.0, t.icon);
                     if theme::hand(b).on_hover_text(tip).clicked() {
                         *edit = Some(pdfcraft_engine::Edit::MoveInTabOrder { name: f.name.clone(), earlier });

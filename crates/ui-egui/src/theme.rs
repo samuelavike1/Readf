@@ -6,6 +6,13 @@ use std::sync::Arc;
 use egui::epaint::text::{FontTweak, HintingTarget, SmoothHinting};
 use egui::{Color32, CornerRadius, FontData, FontDefinitions, FontFamily, FontId, Rect, Response, Stroke, Vec2, Visuals};
 
+/// Subtle corners for buttons, fields, tabs and list selections, in logical points.
+pub const RADIUS_CONTROL: u8 = 3;
+/// Corners for dialogs, menus, cards and other floating surfaces.
+pub const RADIUS_SURFACE: u8 = 4;
+/// Small boxes and progress tracks stay visibly square at compact sizes.
+pub const RADIUS_SMALL: u8 = 2;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum ThemeKind {
     #[default]
@@ -92,7 +99,7 @@ impl Tokens {
                 field: Color32::from_rgb(0xFA, 0xFA, 0xFB),
                 badge_new: Color32::from_rgb(0xDC, 0x26, 0x26),
                 page_shadow: Color32::from_black_alpha(34),
-                radius: 6,
+                radius: RADIUS_CONTROL,
             },
             ThemeKind::Dark => Self {
                 kind,
@@ -116,7 +123,7 @@ impl Tokens {
                 field: Color32::from_rgb(0x1E, 0x1E, 0x22),
                 badge_new: Color32::from_rgb(0xDC, 0x26, 0x26),
                 page_shadow: Color32::from_black_alpha(120),
-                radius: 6,
+                radius: RADIUS_CONTROL,
             },
         }
     }
@@ -434,8 +441,8 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
     v.selection.stroke = Stroke::new(1.0, t.accent);
     v.hyperlink_color = t.accent_text;
     v.override_text_color = Some(t.text);
-    v.window_corner_radius = CornerRadius::same(10);
-    v.menu_corner_radius = CornerRadius::same(8);
+    v.window_corner_radius = CornerRadius::same(RADIUS_SURFACE);
+    v.menu_corner_radius = CornerRadius::same(RADIUS_SURFACE);
     v.window_shadow = egui::Shadow { offset: [0, 8], blur: 28, spread: 0, color: Color32::from_black_alpha(if t.dark() { 110 } else { 38 }) };
     v.popup_shadow = egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(if t.dark() { 90 } else { 30 }) };
     for w in [&mut v.widgets.noninteractive, &mut v.widgets.inactive, &mut v.widgets.hovered, &mut v.widgets.active, &mut v.widgets.open] {

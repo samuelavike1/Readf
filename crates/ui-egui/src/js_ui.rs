@@ -166,19 +166,22 @@ pub(crate) fn console_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
     if !app.session.javascript() {
         ui.label(egui::RichText::new(tl!("JavaScript is turned off (Preferences ▸ JavaScript).")).small().color(t.text_muted));
     }
-    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        egui::ScrollArea::vertical().max_height(220.0).stick_to_bottom(true).show(ui, |ui| {
+    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::same(8)).show(
+        ui,
+        |ui| {
             ui.set_width(ui.available_width());
-            ui.set_min_height(160.0);
-            if app.js_console.log.is_empty() {
-                ui.label(egui::RichText::new(tl!("Output appears here.")).color(t.text_muted));
-            }
-            for line in &app.js_console.log {
-                ui.label(egui::RichText::new(line).monospace());
-            }
-        });
-    });
+            egui::ScrollArea::vertical().max_height(220.0).stick_to_bottom(true).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                ui.set_min_height(160.0);
+                if app.js_console.log.is_empty() {
+                    ui.label(egui::RichText::new(tl!("Output appears here.")).color(t.text_muted));
+                }
+                for line in &app.js_console.log {
+                    ui.label(egui::RichText::new(line).monospace());
+                }
+            });
+        },
+    );
     ui.add_space(6.0);
     let input = ui.add(
         crate::widgets::block(&mut app.js_console.input)
@@ -211,20 +214,23 @@ pub(crate) fn document_js_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
         ui.add(crate::widgets::line(&mut app.doc_js.name).desired_width(240.0).id_salt("doc-js-name"));
     });
     ui.add_space(4.0);
-    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        egui::ScrollArea::vertical().max_height(120.0).id_salt("doc-js-list").show(ui, |ui| {
+    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::same(8)).show(
+        ui,
+        |ui| {
             ui.set_width(ui.available_width());
-            if scripts.is_empty() {
-                ui.label(egui::RichText::new(tl!("This document has no document-level scripts.")).color(t.text_muted));
-            }
-            for (name, js) in &scripts {
-                if ui.selectable_label(app.doc_js.name == *name, name).clicked() {
-                    app.doc_js = DocJsDraft { name: name.clone(), script: js.clone() };
+            egui::ScrollArea::vertical().max_height(120.0).id_salt("doc-js-list").show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                if scripts.is_empty() {
+                    ui.label(egui::RichText::new(tl!("This document has no document-level scripts.")).color(t.text_muted));
                 }
-            }
-        });
-    });
+                for (name, js) in &scripts {
+                    if ui.selectable_label(app.doc_js.name == *name, name).clicked() {
+                        app.doc_js = DocJsDraft { name: name.clone(), script: js.clone() };
+                    }
+                }
+            });
+        },
+    );
     ui.add_space(6.0);
     ui.add(crate::widgets::block(&mut app.doc_js.script).code_editor().desired_rows(8).desired_width(f32::INFINITY).id_salt("doc-js-script"));
     ui.add_space(8.0);
@@ -483,7 +489,7 @@ pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
     date_format(ui, app, t);
     ui.add_space(8.0);
     ui.label(egui::RichText::new("JavaScript").font(theme::semibold(13.0)));
-    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(10)).show(ui, |ui| {
+    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::same(10)).show(ui, |ui| {
         ui.set_width(ui.available_width());
         let mut on = app.session.javascript();
         if ui.add(widgets::checkbox(&mut on, tl!("Enable Acrobat JavaScript"))).changed() {

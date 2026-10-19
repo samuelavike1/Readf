@@ -26,12 +26,12 @@ fn dialog_frame(ctx: &egui::Context) -> egui::Frame {
     egui::Frame::new()
         .fill(t.card)
         .stroke(Stroke::new(1.0, t.border))
-        .corner_radius(CornerRadius::same(10))
+        .corner_radius(CornerRadius::same(theme::RADIUS_SURFACE))
         .inner_margin(egui::Margin::symmetric(DIALOG_PAD_X, DIALOG_PAD_Y))
         .shadow(ctx.global_style().visuals.window_shadow)
 }
 
-/// A modal with the card fill, a 10-point corner and room around its contents.
+/// A modal with the card fill, a subtle surface corner and room around its contents.
 pub fn modal(ctx: &egui::Context, id: impl std::hash::Hash + std::fmt::Debug) -> egui::Modal {
     egui::Modal::new(egui::Id::new(id)).frame(dialog_frame(ctx))
 }
@@ -49,7 +49,7 @@ pub fn show_modal<R>(ctx: &egui::Context, id: &str, content: impl FnOnce(&mut eg
     })
 }
 
-/// Outlined controls at a shared 34-point height, with a focus stroke and 6-point corners.
+/// Outlined controls at a shared 34-point height, with a focus stroke and shared control corners.
 ///
 /// Dialog fills match the theme's field colour, so radio buttons, check boxes, combo boxes
 /// and number fields need the border or they disappear into the card.
@@ -62,7 +62,7 @@ pub fn begin_dialog(ui: &mut egui::Ui) {
     w.inactive.bg_fill = t.hover;
     w.hovered.bg_stroke = Stroke::new(1.0, t.text_muted);
     for state in [&mut w.inactive, &mut w.hovered, &mut w.active, &mut w.open] {
-        state.corner_radius = CornerRadius::same(6);
+        state.corner_radius = CornerRadius::same(theme::RADIUS_CONTROL);
     }
     ui.visuals_mut().selection.stroke = Stroke::new(1.5, t.accent);
     ui.spacing_mut().interact_size.y = FIELD_MIN_HEIGHT;
@@ -137,10 +137,10 @@ pub fn mode_tab(ui: &mut egui::Ui, label: &str, active: bool) -> Response {
     let well = rect.shrink2(vec2(2.0, 9.0));
     if active {
         if press.down > 0.01 {
-            ui.painter().rect_filled(well, CornerRadius::same(6), t.pressed.gamma_multiply(press.down));
+            ui.painter().rect_filled(well, CornerRadius::same(theme::RADIUS_CONTROL), t.pressed.gamma_multiply(press.down));
         }
     } else {
-        press.wash(ui, well, 6, false);
+        press.wash(ui, well, theme::RADIUS_CONTROL, false);
     }
     let body = rect.translate(press.offset());
     ui.painter().text(body.center(), Align2::CENTER_CENTER, label, font, if active { t.text } else { t.text_muted });
@@ -152,7 +152,7 @@ pub fn mode_tab(ui: &mut egui::Ui, label: &str, active: bool) -> Response {
     theme::hand(resp)
 }
 
-/// Compact rounded action button; `primary` fills with the accent.
+/// Compact action button; `primary` fills with the accent.
 pub fn pill_button(ui: &mut egui::Ui, label: &str, primary: bool) -> Response {
     let t = Tokens::get(ui.ctx());
     let font = theme::medium(theme::TEXT_BODY);
@@ -165,7 +165,7 @@ pub fn pill_button(ui: &mut egui::Ui, label: &str, primary: bool) -> Response {
     } else {
         (press.fill(t.card, t.hover, t.pressed), Stroke::new(1.0, t.border), t.text)
     };
-    ui.painter().rect(rect, CornerRadius::same(6), fill, stroke, egui::StrokeKind::Inside);
+    ui.painter().rect(rect, CornerRadius::same(theme::RADIUS_CONTROL), fill, stroke, egui::StrokeKind::Inside);
     ui.painter().text(rect.translate(press.offset()).center(), Align2::CENTER_CENTER, label, font, text);
     focus_outline(ui, &resp);
     theme::hand(resp)
@@ -176,7 +176,7 @@ pub fn focus_outline(ui: &egui::Ui, response: &Response) {
     if response.has_focus() {
         ui.painter().rect_stroke(
             response.rect.shrink(1.0),
-            CornerRadius::same(6),
+            CornerRadius::same(theme::RADIUS_CONTROL),
             Stroke::new(2.0, Tokens::get(ui.ctx()).accent_text),
             egui::StrokeKind::Inside,
         );
@@ -196,7 +196,7 @@ pub fn ghost_button_sized(ui: &mut egui::Ui, icon: &str, label: &str, height: f3
     let (rect, resp) = ui.allocate_exact_size(vec2(w + 38.0, height), Sense::click());
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
     let press = theme::Press::track(ui, &resp);
-    press.wash(ui, rect, 6, false);
+    press.wash(ui, rect, theme::RADIUS_CONTROL, false);
     let body = rect.translate(press.offset());
     icons::paint(ui, Rect::from_min_size(body.min + vec2(6.0, (height - 18.0) / 2.0), vec2(18.0, 18.0)), icon, 17.0, t.icon);
     ui.painter().text(body.left_center() + vec2(30.0, 0.0), Align2::LEFT_CENTER, label, font, t.text);
@@ -212,7 +212,7 @@ pub fn search_box(ui: &mut egui::Ui, placeholder: &str, width: f32) -> Response 
     let press = theme::Press::track(ui, &resp);
     let fill = press.fill(t.field, t.hover, t.pressed);
     let edge = t.border.lerp_to_gamma(t.text_muted, press.hover * 0.35);
-    ui.painter().rect(rect, CornerRadius::same(6), fill, Stroke::new(1.0, edge), egui::StrokeKind::Inside);
+    ui.painter().rect(rect, CornerRadius::same(theme::RADIUS_CONTROL), fill, Stroke::new(1.0, edge), egui::StrokeKind::Inside);
     icons::paint(ui, Rect::from_min_size(rect.min + vec2(10.0, 8.0), vec2(16.0, 16.0)), "search", 15.0, t.text_muted);
     let shortcut = crate::commands::command_shortcut_label(ui.ctx(), "view.palette");
     let shortcut = ui.painter().layout_no_wrap(shortcut, theme::caption(), t.text_faint);
@@ -246,9 +246,8 @@ pub fn menu_item_enabled(ui: &mut egui::Ui, enabled: bool, label: &str, shortcut
     response
 }
 
-/// Corner radius of a checkbox's box. With the widgets' radius (`Tokens::radius`, 6) egui's 14 px
-/// box is a circle, the shape of a radio button, and View ▸ Page display has both.
-const CHECKBOX_RADIUS: u8 = 3;
+/// Keep the small checkbox box distinct from a circular radio button.
+const CHECKBOX_RADIUS: u8 = theme::RADIUS_SMALL;
 
 /// A checkbox whose box is an outlined rounded square, never mistaken for a radio button. Every
 /// checkbox goes through here: clippy.toml disallows `ui.checkbox` and `egui::Checkbox`.
@@ -445,7 +444,7 @@ pub fn toast(app: &mut PdfCraftApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             egui::Frame::NONE
                 .fill(if t.dark() { Color32::from_rgb(0xEC, 0xEC, 0xEF) } else { Color32::from_rgb(0x2A, 0x2A, 0x2F) })
-                .corner_radius(CornerRadius::same(8))
+                .corner_radius(CornerRadius::same(theme::RADIUS_SURFACE))
                 .inner_margin(egui::Margin::symmetric(16, 10))
                 .show(ui, |ui| {
                     // An Area remembers its previous content width. A short notice
@@ -499,48 +498,52 @@ pub fn progress_notice(app: &PdfCraftApp, ctx: &egui::Context) -> bool {
         .pivot(Align2::CENTER_BOTTOM)
         .fixed_pos(screen.center_bottom() - vec2(0.0, 28.0))
         .show(ctx, |ui| {
-            egui::Frame::NONE.fill(fill).corner_radius(CornerRadius::same(10)).inner_margin(egui::Margin::symmetric(16, 12)).show(ui, |ui| {
-                let width = 340.0_f32.min(screen.width() - 64.0).max(160.0);
-                ui.set_width(width);
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(&p.label).color(text));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(egui::RichText::new(format!("{:.0}%", shown * 100.0)).font(theme::medium(12.0)).color(text.gamma_multiply(0.7)));
+            egui::Frame::NONE.fill(fill).corner_radius(CornerRadius::same(theme::RADIUS_SURFACE)).inner_margin(egui::Margin::symmetric(16, 12)).show(
+                ui,
+                |ui| {
+                    let width = 340.0_f32.min(screen.width() - 64.0).max(160.0);
+                    ui.set_width(width);
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new(&p.label).color(text));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(egui::RichText::new(format!("{:.0}%", shown * 100.0)).font(theme::medium(12.0)).color(text.gamma_multiply(0.7)));
+                        });
                     });
-                });
-                ui.add_space(6.0);
-                let (track, resp) = ui.allocate_exact_size(vec2(width, 6.0), Sense::hover());
-                // The label above names the job; the bar carries the percentage.
-                resp.widget_info(|| {
-                    let mut info = egui::WidgetInfo::new(egui::WidgetType::ProgressIndicator);
-                    info.value = Some(f64::from(fraction) * 100.0);
-                    info
-                });
-                let painter = ui.painter();
-                painter.rect_filled(track, CornerRadius::same(3), text.gamma_multiply(0.18));
-                let done = Rect::from_min_size(track.min, vec2(track.width() * shown, track.height()));
-                if done.width() > 0.5 {
-                    painter.rect_filled(done, CornerRadius::same(3), t.accent);
-                    // A soft light sweeping along the filled part says the job is alive between
-                    // updates.
-                    if animated {
-                        let band = 48.0;
-                        let x = done.left() - band + ((now * 160.0) % f64::from(done.width() + band)) as f32;
-                        let clip = painter.with_clip_rect(done);
-                        for (i, a) in [0.10_f32, 0.22, 0.10].into_iter().enumerate() {
-                            let r = Rect::from_min_size(egui::pos2(x + i as f32 * band / 3.0, done.top()), vec2(band / 3.0, done.height()));
-                            clip.rect_filled(r, CornerRadius::ZERO, Color32::WHITE.gamma_multiply(a));
+                    ui.add_space(6.0);
+                    let (track, resp) = ui.allocate_exact_size(vec2(width, 6.0), Sense::hover());
+                    // The label above names the job; the bar carries the percentage.
+                    resp.widget_info(|| {
+                        let mut info = egui::WidgetInfo::new(egui::WidgetType::ProgressIndicator);
+                        info.value = Some(f64::from(fraction) * 100.0);
+                        info
+                    });
+                    let painter = ui.painter();
+                    painter.rect_filled(track, CornerRadius::same(theme::RADIUS_SMALL), text.gamma_multiply(0.18));
+                    let done = Rect::from_min_size(track.min, vec2(track.width() * shown, track.height()));
+                    if done.width() > 0.5 {
+                        painter.rect_filled(done, CornerRadius::same(theme::RADIUS_SMALL), t.accent);
+                        // A soft light sweeping along the filled part says the job is alive between
+                        // updates.
+                        if animated {
+                            let band = 48.0;
+                            let x = done.left() - band + ((now * 160.0) % f64::from(done.width() + band)) as f32;
+                            let clip = painter.with_clip_rect(done);
+                            for (i, a) in [0.10_f32, 0.22, 0.10].into_iter().enumerate() {
+                                let r = Rect::from_min_size(egui::pos2(x + i as f32 * band / 3.0, done.top()), vec2(band / 3.0, done.height()));
+                                clip.rect_filled(r, CornerRadius::ZERO, Color32::WHITE.gamma_multiply(a));
+                            }
                         }
                     }
-                }
-                if p.cancellable {
-                    ui.add_space(4.0);
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let b = egui::Button::new(egui::RichText::new(tl!("Cancel")).font(theme::medium(theme::TEXT_LABEL)).color(text)).frame(false);
-                        cancel = ui.add(b).clicked();
-                    });
-                }
-            });
+                    if p.cancellable {
+                        ui.add_space(4.0);
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let b =
+                                egui::Button::new(egui::RichText::new(tl!("Cancel")).font(theme::medium(theme::TEXT_LABEL)).color(text)).frame(false);
+                            cancel = ui.add(b).clicked();
+                        });
+                    }
+                },
+            );
         });
     ctx.data_mut(|d| d.insert_temp(egui::Id::new(PROGRESS_HEIGHT), area.response.rect.height()));
     ctx.request_repaint_after(std::time::Duration::from_millis(33));
@@ -559,10 +562,10 @@ pub fn split_pill(ui: &mut egui::Ui, icon: &str, label: &str, more: &str) -> (Re
     let arrow = ui.interact(more_rect, ui.id().with(("split-pill-more", label)), Sense::click());
     main.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
     arrow.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), more));
-    let radius = CornerRadius::same(6);
+    let radius = CornerRadius::same(theme::RADIUS_CONTROL);
     ui.painter().rect(rect, radius, t.card, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-    let left = CornerRadius { nw: 6, sw: 6, ne: 0, se: 0 };
-    let right = CornerRadius { nw: 0, sw: 0, ne: 6, se: 6 };
+    let left = CornerRadius { nw: theme::RADIUS_CONTROL, sw: theme::RADIUS_CONTROL, ne: 0, se: 0 };
+    let right = CornerRadius { nw: 0, sw: 0, ne: theme::RADIUS_CONTROL, se: theme::RADIUS_CONTROL };
     let main_press = theme::Press::track(ui, &main);
     let arrow_press = theme::Press::track(ui, &arrow);
     for (r, press, corners) in [(main_rect, main_press, left), (more_rect, arrow_press, right)] {
@@ -595,7 +598,7 @@ pub fn icon_pill(ui: &mut egui::Ui, icon: &str, label: &str, primary: bool) -> R
     } else {
         (press.fill(t.card, t.hover, t.pressed), Stroke::new(1.0, t.border), t.text)
     };
-    ui.painter().rect(rect, CornerRadius::same(6), fill, stroke, egui::StrokeKind::Inside);
+    ui.painter().rect(rect, CornerRadius::same(theme::RADIUS_CONTROL), fill, stroke, egui::StrokeKind::Inside);
     let body = rect.translate(press.offset());
     crate::icons::paint(ui, Rect::from_min_size(body.min + vec2(12.0, 7.0), vec2(16.0, 16.0)), icon, 15.0, text);
     ui.painter().text(body.left_center() + vec2(34.0, 0.0), Align2::LEFT_CENTER, label, font, text);
@@ -655,7 +658,7 @@ mod tests {
         crate::i18n::set_current(previous);
     }
 
-    /// View ▸ Page display mixes radio buttons and checkboxes. With the theme's 6 px widget radius
+    /// View ▸ Page display mixes radio buttons and checkboxes. With the former 6 px widget radius
     /// egui's 14 px checkbox box drew as a circle, and on the light theme an unticked box or an
     /// unselected radio button was white on white with no outline, so it couldn't be seen.
     #[test]

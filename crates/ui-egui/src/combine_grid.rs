@@ -656,7 +656,7 @@ pub(crate) fn grid(
                 }
                 if start.page.is_some() {
                     let band = cell_rect(first.saturating_add(run)).union(cell_rect(first.saturating_add(end))).shrink2(vec2(2.0, 4.0));
-                    ui.painter().rect_filled(band, CornerRadius::same(10), t.accent_soft.gamma_multiply(0.45));
+                    ui.painter().rect_filled(band, CornerRadius::same(theme::RADIUS_SURFACE), t.accent_soft.gamma_multiply(0.45));
                 }
                 run = end.saturating_add(1);
             }
@@ -852,10 +852,10 @@ impl Card {
 
         // Selected and hovered cards.
         if self.selected || resp.hovered() {
-            painter.rect_filled(c.shrink(6.0), CornerRadius::same(8), if self.selected { t.accent_soft } else { t.hover });
+            painter.rect_filled(c.shrink(6.0), CornerRadius::same(theme::RADIUS_SURFACE), if self.selected { t.accent_soft } else { t.hover });
         }
         if self.selected {
-            painter.rect_stroke(c.shrink(6.0), CornerRadius::same(8), Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+            painter.rect_stroke(c.shrink(6.0), CornerRadius::same(theme::RADIUS_SURFACE), Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
         }
 
         // The page, fitted in the paper box (top-aligned, room above for the stack).
@@ -1016,7 +1016,7 @@ impl Card {
             let y = paper.top() + BAR_H / 4.0 - BAR_H / 2.0;
             let bar = Rect::from_center_size(pos2(paper.center().x, y), vec2(count * 26.0 + (count - 1.0).max(0.0) * 2.0 + 8.0, BAR_H));
             over_bar = ui.rect_contains_pointer(bar);
-            painter.rect(bar, CornerRadius::same(8), t.card, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+            painter.rect(bar, CornerRadius::same(theme::RADIUS_SURFACE), t.card, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
             let mut bar_ui = ui.new_child(egui::UiBuilder::new().max_rect(bar.shrink(4.0)).layout(egui::Layout::left_to_right(egui::Align::Center)));
             bar_ui.spacing_mut().item_spacing.x = 2.0;
             for (icon, label, act) in &buttons {
