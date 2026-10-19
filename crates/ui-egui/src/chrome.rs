@@ -32,10 +32,11 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     // buttons shrink to keep a margin above and below.
     let mac = cfg!(target_os = "macos") && app.integrated_titlebar;
     let left = if mac { MAC_CONTENT_LEFT as i8 } else { 8 };
+    let right = if cfg!(target_os = "windows") && app.draws_window_frame() { 0 } else { 10 };
     let (tab_h, button) = if mac { (MAC_TITLE_BAR - 2.0, 24.0) } else { (TAB_HEIGHT, STRIP_BUTTON) };
     egui::Panel::top("tab_strip")
         .exact_size(if mac { MAC_TITLE_BAR } else { TAB_STRIP })
-        .frame(egui::Frame::NONE.fill(t.titlebar).inner_margin(egui::Margin { left, right: 10, top: 0, bottom: 0 }))
+        .frame(egui::Frame::NONE.fill(t.titlebar).inner_margin(egui::Margin { left, right, top: 0, bottom: 0 }))
         .show(ui, |ui| {
             let full = ui.max_rect();
             let drag = ui.interact(full, ui.id().with("titledrag"), Sense::click_and_drag());
@@ -46,7 +47,7 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 let max = ui.ctx().input(|i| i.viewport().maximized.unwrap_or(false));
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Maximized(!max));
             }
-            // GNOME on Wayland: the strip is the header bar, with the window buttons at its ends.
+            // Windows and GNOME: the strip is the header bar, with window buttons at its ends.
             let fullscreen = ui.ctx().input(|i| i.viewport().fullscreen.unwrap_or(false));
             let controls = app
                 .window_controls

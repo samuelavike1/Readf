@@ -196,8 +196,8 @@ fn main() -> eframe::Result {
     }
     let files = rejoin_split_paths(files, |p| std::path::Path::new(p).is_file());
     let integrated = cfg!(target_os = "macos");
-    // GNOME on Wayland leaves the window frame to the app (src/decorations.rs).
-    let window_controls = if cfg!(any(target_os = "macos", target_os = "windows")) { None } else { decorations::app_drawn() };
+    // Windows uses the Home/tab row as its title bar; GNOME may also need an app frame.
+    let window_controls = app_window_controls();
     migrate_legacy_folders();
     // The log file lives in the settings folder; opened after the arguments (so `--version` leaves
     // no file behind) and after the PrintCraft migration (which a fresh folder would block).
@@ -284,6 +284,17 @@ fn renderer_choice(value: Option<&str>) -> RendererChoice {
 /// nobody, and it failed before the app was created (so while starting the renderer, not later).
 fn retry_with_gl(choice: RendererChoice, app_started: bool) -> bool {
     choice == RendererChoice::Auto && !app_started
+}
+
+/// Platforms whose Home/tab row includes the window controls.
+fn app_window_controls() -> Option<pdfcraft_ui_egui::window_controls::Layout> {
+    if cfg!(target_os = "windows") {
+        Some(pdfcraft_ui_egui::window_controls::Layout::default())
+    } else if cfg!(target_os = "macos") {
+        None // AppKit supplies the traffic lights over the integrated tab strip.
+    } else {
+        decorations::app_drawn()
+    }
 }
 
 /// The window and renderer settings for one run.
@@ -820,6 +831,15 @@ mod tests {
         use super::native_options;
         assert_eq!(native_options(false, false, eframe::Renderer::Glow).viewport.decorations, None);
         assert_eq!(native_options(false, true, eframe::Renderer::Glow).viewport.decorations, Some(false));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_uses_the_home_row_as_its_title_bar() {
+        let controls = super::app_window_controls().expect("Windows has integrated window controls");
+        assert!(controls.left.is_empty());
+        assert_eq!(controls.right, pdfcraft_ui_egui::window_controls::Layout::default().right);
+        assert_eq!(super::native_options(false, true, eframe::Renderer::Glow).viewport.decorations, Some(false));
     }
 
     #[test]
