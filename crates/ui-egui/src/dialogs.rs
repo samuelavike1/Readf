@@ -942,7 +942,8 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 return;
             }
             Dialog::Marks(kind) => {
-                ui.set_width(widgets::dialog_width(ctx, 720.0));
+                let width = if kind == pdfcraft_engine::MarkKind::HeaderFooter { 720.0 } else { 480.0 };
+                ui.set_width(widgets::dialog_width(ctx, width));
                 let (apply, cancel) = crate::marks_ui::body(ui, app, &t, kind);
                 marks_now = apply;
                 close = apply || cancel;

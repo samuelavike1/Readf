@@ -14,9 +14,6 @@ use crate::panels::Nav;
 use crate::theme::{self, Tokens};
 use crate::{icons, widgets};
 
-/// Accent bar of the selected card (11-visual-spec §3: `#0165DD`).
-const CARD_ACCENT: Color32 = Color32::from_rgb(0x01, 0x65, 0xDD);
-
 /// Reader-friendly names for annotation subtypes (the PDF names are shown in tooltips).
 pub fn subtype_label(s: &str) -> &str {
     match s {
@@ -122,10 +119,24 @@ pub(crate) fn show(
     }
     // "Add a comment": a sticky note on the current page, near its top-right corner.
     if allowed {
-        let r = ui.add(
-            crate::widgets::line(&mut view.comments.add_box).hint_text(tl!("Add a comment")).desired_width(f32::INFINITY).id_salt("comment-add-box"),
-        );
-        if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !view.comments.add_box.trim().is_empty() {
+        let post_width = (widgets::text_width(ui, tl!("Post"), &theme::medium(theme::TEXT_BODY)) + 28.0).max(64.0);
+        let field_width = (ui.available_width() - post_width - ui.spacing().item_spacing.x - 20.0).max(1.0);
+        let (enter, post) = ui
+            .horizontal(|ui| {
+                let r = ui.add(
+                    crate::widgets::line(&mut view.comments.add_box)
+                        .hint_text(tl!("Add a comment"))
+                        .desired_width(field_width)
+                        .id_salt("comment-add-box"),
+                );
+                let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                let ok = !view.comments.add_box.trim().is_empty();
+                let post = ui.add_enabled_ui(ok, |ui| widgets::pill_button(ui, tl!("Post"), true)).inner;
+                post.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ok, tl!("Post comment")));
+                (enter, post.clicked())
+            })
+            .inner;
+        if (enter || post) && !view.comments.add_box.trim().is_empty() {
             let page = view.current.min(info.pages.len().saturating_sub(1));
             if let Some(p) = info.pages.get(page) {
                 let at = p.view_to_user(p.width - 44.0, 24.0);
@@ -148,7 +159,7 @@ pub(crate) fn show(
             ui.add_space(8.0);
             ui.label(egui::RichText::new(tl!("No comments yet.")).color(t.text_muted));
             if allowed {
-                ui.label(egui::RichText::new(tl!("Pick a tool in the quick bar, or type above.")).color(t.text_faint).small());
+                ui.label(egui::RichText::new(tl!("Type a comment above, then select Post or press Enter.")).color(t.text_faint).small());
             }
         });
         return edit;
@@ -300,14 +311,12 @@ fn card(
                         r.request_focus();
                     }
                     ui.horizontal(|ui| {
-                        if ui
-                            .add(egui::Button::new(egui::RichText::new(tl!("Save")).color(Color32::WHITE)).fill(t.accent).corner_radius(12))
-                            .clicked()
+                        if widgets::pill_button(ui, tl!("Save"), true).clicked()
                             && let Some((page, index, text)) = view.comments.editing.take()
                         {
                             edit = Some(Edit::SetAnnotationContents { page, index, text });
                         }
-                        if ui.button(tl!("Cancel")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                             view.comments.editing = None;
                         }
                     });
@@ -366,9 +375,8 @@ fn card(
                     );
                     let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                     let ok = !view.comments.reply.trim().is_empty();
-                    let post =
-                        ui.with_layout(Layout::right_to_left(Align::Min), |ui| ui.add_enabled(ok, egui::Button::new(tl!("Post")).corner_radius(12)));
-                    if (post.inner.clicked() || enter) && ok {
+                    let post = ui.add_enabled_ui(ok, |ui| widgets::pill_button(ui, tl!("Post"), true)).inner;
+                    if (post.clicked() || enter) && ok {
                         let text = std::mem::take(&mut view.comments.reply).trim().to_string();
                         edit = Some(Edit::ReplyToAnnotation { page: a.page, index: a.index, text, author: prefs.author.clone() });
                     }
@@ -382,12 +390,12 @@ fn card(
     let rect = frame.response.rect;
     if selected {
         let bar = egui::Rect::from_min_size(rect.min, vec2(4.0, rect.height()));
-        ui.painter().rect_filled(bar, CornerRadius { nw: 6, sw: 6, ne: 0, se: 0 }, CARD_ACCENT);
+        ui.painter().rect_filled(bar, CornerRadius { nw: 6, sw: 6, ne: 0, se: 0 }, t.accent);
         if std::mem::take(&mut view.comments.reveal) {
             frame.response.scroll_to_me(Some(Align::Center));
         }
     }
-    ui.painter().hline(rect.x_range().shrink(10.0), rect.bottom() + 2.0, Stroke::new(1.0, t.divider));
+    ui.painter().hline(rect.x_range().shrink(10.0), rect.bottom() + 2.0, Stroke::new(1.0, t.divider.gamma_multiply(0.55)));
     ui.add_space(5.0);
     // The header row selects the card (and shows the comment on the page); unselected cards are
     // clickable everywhere.

@@ -609,39 +609,73 @@ fn toolbar_actions(app: &mut PdfCraftApp, ui: &mut egui::Ui, compact: bool) {
             app.choose_right_panel(if app.right == Some(RightPanel::Comments) { None } else { Some(RightPanel::Comments) });
         }
     });
-    ui.menu_button(tl!("Tools"), |ui| {
+    let tools = ui.button(tl!("Tools"));
+    egui::Popup::menu(&tools).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
         let width = (ui.ctx().content_rect().width() - 48.0).clamp(240.0, 320.0);
         ui.set_width(width);
+        let query_id = egui::Id::new("tools-search");
+        let mut query = ui.data(|data| data.get_temp::<String>(query_id)).unwrap_or_default();
+        let previous = query.clone();
+        let search = ui.add(egui::TextEdit::singleline(&mut query).hint_text(tl!("Search tools")).desired_width(f32::INFINITY));
+        search.widget_info(|| {
+            let mut info = egui::WidgetInfo::text_edit(ui.is_enabled(), &previous, &query, "");
+            info.label = Some(tl!("Search tools").to_string());
+            info
+        });
+        ui.data_mut(|data| data.insert_temp(query_id, query.clone()));
+        let query = pdfcraft_render::text::fold_case(query.trim());
+        ui.separator();
         // Stay within egui's popup height and reserve a visible scroll track when
         // the command list is taller, including the search action at its end.
         ui.spacing_mut().scroll.floating = false;
         let height = (ui.ctx().content_rect().height() - 140.0).clamp(200.0, 360.0);
         egui::ScrollArea::vertical().max_height(height).show(ui, |ui| {
-            if tool_menu_row(ui, "mouse-pointer-2", tl!("Select (V)")).clicked() {
-                app.quick_tool = crate::QuickTool::Select;
-                ui.close();
+            if query.is_empty() {
+                if tool_menu_row(ui, "mouse-pointer-2", tl!("Select (V)")).clicked() {
+                    app.quick_tool = crate::QuickTool::Select;
+                    ui.close();
+                }
+                if tool_menu_row(ui, "hand", tl!("Hand (H)")).clicked() {
+                    app.quick_tool = crate::QuickTool::Hand;
+                    ui.close();
+                }
+                if crate::commands::menu_row(ui, true, tl!("Read"), "").clicked() {
+                    app.switch_mode(Mode::Read, true);
+                    ui.close();
+                }
+                if crate::commands::menu_row(ui, true, tl!("All tools"), "").clicked() {
+                    app.switch_mode(Mode::AllTools, true);
+                    ui.close();
+                }
+                ui.separator();
             }
-            if tool_menu_row(ui, "hand", tl!("Hand (H)")).clicked() {
-                app.quick_tool = crate::QuickTool::Hand;
-                ui.close();
-            }
-            if crate::commands::menu_row(ui, true, tl!("Read"), "").clicked() {
-                app.switch_mode(Mode::Read, true);
-                ui.close();
-            }
-            if crate::commands::menu_row(ui, true, tl!("All tools"), "").clicked() {
-                app.switch_mode(Mode::AllTools, true);
-                ui.close();
-            }
-            ui.separator();
+            let mut matches = 0;
             for group in pdfcraft_engine::catalog::TOOL_GROUPS {
+                let matches_query = |text: &str| pdfcraft_render::text::fold_case(text).contains(&query);
+                if !query.is_empty()
+                    && !matches_query(tl!(group.label))
+                    && !matches_query(group.label)
+                    && !group
+                        .sections
+                        .iter()
+                        .flat_map(|section| section.items)
+                        .any(|item| matches_query(tl!(item.label)) || matches_query(item.label))
+                {
+                    continue;
+                }
+                matches += 1;
                 if tool_menu_row(ui, group.icon, tl!(group.label)).clicked() {
                     app.select_tool(group.id);
+                    ui.data_mut(|data| data.remove::<String>(query_id));
                     ui.close();
                 }
             }
             ui.separator();
+            if matches == 0 {
+                ui.label(tl!("No results"));
+            }
             if widgets::search_box(ui, tl!("Find tools and commands"), 230.0).clicked() {
+                app.palette_query = query.clone();
                 app.palette_open = true;
                 ui.close();
             }
@@ -766,12 +800,6 @@ pub fn right_rail(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 }
                 crate::panels::right_panel(app, ui);
             });
-    } else {
-        egui::Panel::left("navigation_rail")
-            .resizable(false)
-            .exact_size(44.0)
-            .frame(egui::Frame::NONE.fill(t.chrome).inner_margin(egui::Margin::symmetric(5, 8)))
-            .show(ui, |ui| navigation_buttons(app, ui));
     }
 }
 

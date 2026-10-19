@@ -26,6 +26,7 @@ trailer << /Root 1 0 R >>
 fn harness(setup: impl FnOnce(&mut PdfCraftApp) + 'static) -> Harness<'static, PdfCraftApp> {
     let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(move |_cc| {
         let mut app = PdfCraftApp::new();
+        app.default_mode = pdfcraft_ui_egui::Mode::AllTools;
         app.set_option("language", "en").unwrap();
         app.open_bytes("text.pdf", None, TEXT_FIXTURE.to_vec()).expect("opens");
         app.set_option("left", "closed").unwrap();
@@ -1042,7 +1043,7 @@ fn the_opacity_set_for_a_tool_goes_into_its_new_comments() {
 #[test]
 fn a_closed_comments_panel_stays_closed_when_picking_comment_tools() {
     use pdfcraft_ui_egui::RightPanel;
-    let mut h = harness(|_| {});
+    let mut h = harness(|app| app.choose_right_panel(None));
     assert_eq!(h.state().right, None);
     assert!(h.state_mut().execute("comment.highlight"));
     h.run_steps(2);

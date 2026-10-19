@@ -106,14 +106,14 @@ fn summary(r: &OptimizeReport) -> String {
 
 fn image_row(ui: &mut egui::Ui, id: &str, title: &str, s: &mut ImageSettings) {
     ui.label(egui::RichText::new(tl!(title)).font(theme::semibold(13.0)));
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         ui.add(widgets::checkbox(&mut s.downsample, tl!("Bicubic downsampling to")));
         ui.add_enabled(s.downsample, egui::DragValue::new(&mut s.target_ppi).range(9.0..=2400.0).suffix(" ppi"));
         ui.label(tl!("for images above"));
         ui.add_enabled(s.downsample, egui::DragValue::new(&mut s.above_ppi).range(9.0..=2400.0).suffix(" ppi"));
     });
     s.above_ppi = s.above_ppi.max(s.target_ppi);
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         ui.label(tl!("Compression"));
         let label = match s.compression {
             Compression::Jpeg(_) => "JPEG",
@@ -156,57 +156,81 @@ fn discard_box(ui: &mut egui::Ui, list: &mut Vec<Hidden>, h: Hidden, label: &str
 /// Draw the dialog; returns (ok, cancel).
 pub(crate) fn body(ui: &mut egui::Ui, d: &mut OptimizeDraft, t: &Tokens) -> (bool, bool) {
     crate::widgets::dialog_title(ui, tl!("PDF Optimizer"));
-    ui.add_space(6.0);
-    ui.horizontal_wrapped(|ui| {
-        for (tab, label) in [
-            (OptimizeTab::Images, tl!("Images")),
-            (OptimizeTab::DiscardObjects, tl!("Discard Objects")),
-            (OptimizeTab::DiscardUserData, tl!("Discard User Data")),
-            (OptimizeTab::CleanUp, tl!("Clean Up")),
-        ] {
-            if widgets::mode_tab(ui, label, d.tab == tab).clicked() {
-                d.tab = tab;
-            }
-        }
-    });
-    ui.separator();
-    ui.add_space(6.0);
-    let s = &mut d.settings;
-    match d.tab {
-        OptimizeTab::Images => {
-            image_row(ui, "color", "Color Images", &mut s.color);
-            image_row(ui, "gray", "Grayscale Images", &mut s.gray);
+    // Keep actions outside this scrolling settings area so they remain reachable on a short
+    // window. The draft owns all values; this layout only controls what is visible initially.
+    ui.spacing_mut().scroll.floating = false;
+    let content_height = (ui.ctx().content_rect().height() - 220.0).clamp(180.0, 520.0);
+    egui::ScrollArea::vertical().id_salt("optimize-content").max_height(content_height).auto_shrink([false, true]).show(ui, |ui| {
+        ui.label(egui::RichText::new(tl!("Reduce file size while keeping the document readable.")).color(t.text_muted));
+        ui.add_space(10.0);
+        let s = &mut d.settings;
+        ui.label(egui::RichText::new(tl!("Images")).font(theme::semibold(13.0)));
+        image_row(ui, "color", "Color Images", &mut s.color);
+        image_row(ui, "gray", "Grayscale Images", &mut s.gray);
+        ui.label(
+            egui::RichText::new(tl!("Each image is measured where pages draw it; an image is replaced only if the result is smaller."))
+                .small()
+                .color(t.text_muted),
+        );
+        ui.add_space(8.0);
+
+        // Keep destructive and technical choices together, while preserving the existing tabs and
+        // draft state so no optimizer capability is removed. It starts closed to keep common
+        // image settings prominent; the selected subtab is only a display fallback when the
+        // draft has not visited advanced settings yet.
+        let advanced_tab = match d.tab {
+            OptimizeTab::Images => OptimizeTab::DiscardObjects,
+            tab => tab,
+        };
+        egui::CollapsingHeader::new(egui::RichText::new(tl!("Advanced options")).font(theme::semibold(13.0))).default_open(false).show(ui, |ui| {
             ui.label(
-                egui::RichText::new(tl!("Each image is measured where pages draw it; an image is replaced only if the result is smaller."))
+                egui::RichText::new(tl!("Use these options only when you need to remove document data or clean up its structure."))
                     .small()
                     .color(t.text_muted),
             );
-        }
-        OptimizeTab::DiscardObjects => {
-            discard_box(ui, &mut d.discard, Hidden::LinksActionsScripts, "Discard all links, actions and JavaScript");
-            ui.add(widgets::checkbox(&mut s.discard_alternate_images, tl!("Discard alternate images")));
-            ui.add(widgets::checkbox(&mut s.discard_thumbnails, tl!("Discard embedded page thumbnails")));
-            ui.add(widgets::checkbox(&mut s.discard_tags, tl!("Discard document tags")));
-            ui.add(widgets::checkbox(&mut s.discard_print_settings, tl!("Discard embedded print settings")));
-            discard_box(ui, &mut d.discard, Hidden::Bookmarks, "Discard bookmarks");
-            discard_box(ui, &mut d.discard, Hidden::FormFields, "Flatten form fields");
-            discard_box(ui, &mut d.discard, Hidden::HiddenLayers, "Discard hidden layer content");
-        }
-        OptimizeTab::DiscardUserData => {
-            discard_box(ui, &mut d.discard, Hidden::Comments, "Discard all comments, forms and multimedia");
-            discard_box(ui, &mut d.discard, Hidden::Metadata, "Discard document information and metadata");
-            discard_box(ui, &mut d.discard, Hidden::Attachments, "Discard all object data (file attachments)");
-            discard_box(ui, &mut d.discard, Hidden::PrivateData, "Discard private data of other applications");
-            discard_box(ui, &mut d.discard, Hidden::HiddenText, "Discard hidden text");
-        }
-        OptimizeTab::CleanUp => {
-            ui.add(widgets::checkbox(&mut s.flate_unencoded, tl!("Use Flate to encode streams that are not encoded")));
-            ui.add(widgets::checkbox(&mut s.remove_invalid_links, tl!("Remove invalid links and bookmarks")));
-            ui.add(widgets::checkbox(&mut s.remove_unreferenced_dests, tl!("Remove unreferenced named destinations")));
-            ui.add_enabled(false, widgets::checkbox(&mut true, tl!("Compress document structure (object streams)")));
-            ui.add_enabled(false, widgets::checkbox(&mut true, tl!("Remove unused objects and merge identical ones")));
-        }
-    }
+            ui.add_space(4.0);
+            ui.horizontal_wrapped(|ui| {
+                for (tab, label) in [
+                    (OptimizeTab::DiscardObjects, tl!("Discard Objects")),
+                    (OptimizeTab::DiscardUserData, tl!("Discard User Data")),
+                    (OptimizeTab::CleanUp, tl!("Clean Up")),
+                ] {
+                    if widgets::mode_tab(ui, label, advanced_tab == tab).clicked() {
+                        d.tab = tab;
+                    }
+                }
+            });
+            ui.separator();
+            ui.add_space(6.0);
+            match advanced_tab {
+                OptimizeTab::DiscardObjects => {
+                    discard_box(ui, &mut d.discard, Hidden::LinksActionsScripts, "Discard all links, actions and JavaScript");
+                    ui.add(widgets::checkbox(&mut s.discard_alternate_images, tl!("Discard alternate images")));
+                    ui.add(widgets::checkbox(&mut s.discard_thumbnails, tl!("Discard embedded page thumbnails")));
+                    ui.add(widgets::checkbox(&mut s.discard_tags, tl!("Discard document tags")));
+                    ui.add(widgets::checkbox(&mut s.discard_print_settings, tl!("Discard embedded print settings")));
+                    discard_box(ui, &mut d.discard, Hidden::Bookmarks, "Discard bookmarks");
+                    discard_box(ui, &mut d.discard, Hidden::FormFields, "Flatten form fields");
+                    discard_box(ui, &mut d.discard, Hidden::HiddenLayers, "Discard hidden layer content");
+                }
+                OptimizeTab::DiscardUserData => {
+                    discard_box(ui, &mut d.discard, Hidden::Comments, "Discard all comments, forms and multimedia");
+                    discard_box(ui, &mut d.discard, Hidden::Metadata, "Discard document information and metadata");
+                    discard_box(ui, &mut d.discard, Hidden::Attachments, "Discard all object data (file attachments)");
+                    discard_box(ui, &mut d.discard, Hidden::PrivateData, "Discard private data of other applications");
+                    discard_box(ui, &mut d.discard, Hidden::HiddenText, "Discard hidden text");
+                }
+                OptimizeTab::CleanUp => {
+                    ui.add(widgets::checkbox(&mut s.flate_unencoded, tl!("Use Flate to encode streams that are not encoded")));
+                    ui.add(widgets::checkbox(&mut s.remove_invalid_links, tl!("Remove invalid links and bookmarks")));
+                    ui.add(widgets::checkbox(&mut s.remove_unreferenced_dests, tl!("Remove unreferenced named destinations")));
+                    ui.add_enabled(false, widgets::checkbox(&mut true, tl!("Compress document structure (object streams)")));
+                    ui.add_enabled(false, widgets::checkbox(&mut true, tl!("Remove unused objects and merge identical ones")));
+                }
+                OptimizeTab::Images => {}
+            }
+        });
+    });
     ui.add_space(12.0);
     let (mut ok, mut cancel) = (false, false);
     ui.horizontal(|ui| {

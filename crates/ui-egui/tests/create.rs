@@ -164,11 +164,23 @@ fn the_pdf_optimizer_dialog_saves_an_optimized_copy() {
     h.run_steps(2);
     h.get_by_label("PDF Optimizer");
     h.get_by_label("Color Images");
+    h.get_by_label("Advanced options").scroll_to_me();
+    h.run_steps(8);
+    h.get_by_label("Advanced options").click();
+    h.run_steps(2);
+    h.get_by_label("Discard Objects").scroll_to_me();
+    h.run_steps(8);
     h.get_by_label("Discard Objects").click();
     h.run_steps(2);
+    h.get_by_label("Discard document tags").scroll_to_me();
+    h.run_steps(8);
     h.get_by_label("Discard document tags").click();
+    h.get_by_label("Discard User Data").scroll_to_me();
+    h.run_steps(8);
     h.get_by_label("Discard User Data").click();
     h.run_steps(2);
+    h.get_by_label("Discard document information and metadata").scroll_to_me();
+    h.run_steps(8);
     h.get_by_label("Discard document information and metadata").click();
     h.run_steps(1);
     {

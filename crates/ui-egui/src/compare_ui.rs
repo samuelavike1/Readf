@@ -46,20 +46,35 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
         app.compare_old = others.first().map(|(id, _)| *id);
     }
     let new_name = app.session.get(new).map(|d| d.name.clone()).unwrap_or_default();
-    egui::Grid::new("compare-files").num_columns(2).spacing([12.0, 10.0]).show(ui, |ui| {
-        ui.label(tl!("Old file:"));
-        let shown =
-            others.iter().find(|(id, _)| Some(*id) == app.compare_old).map_or(tl!("Open the older version first").to_string(), |(_, n)| n.clone());
-        egui::ComboBox::from_id_salt("compare-old").selected_text(shown).width(320.0).show_ui(ui, |ui| {
+    let shown =
+        others.iter().find(|(id, _)| Some(*id) == app.compare_old).map_or(tl!("Open the older version first").to_string(), |(_, n)| n.clone());
+    let combo_width = (ui.available_width() - 4.0).clamp(180.0, 360.0);
+    // Use stacked rows when the modal is narrow; the old grid otherwise keeps the two files
+    // visually paired without forcing a horizontal overflow.
+    if ui.available_width() < 440.0 {
+        ui.label(egui::RichText::new(tl!("Old file:")).font(crate::theme::semibold(12.5)));
+        egui::ComboBox::from_id_salt("compare-old").selected_text(shown).width(combo_width).truncate().show_ui(ui, |ui| {
             for (id, n) in &others {
                 ui.selectable_value(&mut app.compare_old, Some(*id), n);
             }
         });
-        ui.end_row();
-        ui.label(tl!("New file:"));
-        ui.label(egui::RichText::new(new_name).strong());
-        ui.end_row();
-    });
+        ui.add_space(10.0);
+        ui.label(egui::RichText::new(tl!("New file:")).font(crate::theme::semibold(12.5)));
+        ui.add(egui::Label::new(egui::RichText::new(&new_name).strong()).truncate()).on_hover_text(&new_name);
+    } else {
+        egui::Grid::new("compare-files").num_columns(2).spacing([12.0, 10.0]).show(ui, |ui| {
+            ui.label(egui::RichText::new(tl!("Old file:")).font(crate::theme::semibold(12.5)));
+            egui::ComboBox::from_id_salt("compare-old").selected_text(shown).width(combo_width).truncate().show_ui(ui, |ui| {
+                for (id, n) in &others {
+                    ui.selectable_value(&mut app.compare_old, Some(*id), n);
+                }
+            });
+            ui.end_row();
+            ui.label(egui::RichText::new(tl!("New file:")).font(crate::theme::semibold(12.5)));
+            ui.add(egui::Label::new(egui::RichText::new(&new_name).strong()).truncate()).on_hover_text(&new_name);
+            ui.end_row();
+        });
+    }
     ui.add_space(4.0);
     ui.label(egui::RichText::new(tl!("Text is compared word by word; the differences are shown on the new file.")).small().color(t.text_muted));
     ui.add_space(10.0);
@@ -99,7 +114,7 @@ pub(crate) fn panel(ui: &mut egui::Ui, t: &Tokens, state: &Option<CompareState>,
         ui.label(crate::i18n::fmt(tl!("{n} {kind}"), &[("n", &s.visual.len().to_string()), ("kind", tl!("Visual"))]));
     });
     ui.add_space(6.0);
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         if ui.button(tl!("Mark as comments")).clicked() {
             action = Some(PanelAction::Mark);
         }
@@ -131,7 +146,7 @@ pub(crate) fn panel(ui: &mut egui::Ui, t: &Tokens, state: &Option<CompareState>,
                         .small()
                         .color(t.text_muted),
                     );
-                    ui.selectable_label(selected, text)
+                    ui.add(egui::Button::selectable(selected, text).wrap())
                 })
                 .inner
             })

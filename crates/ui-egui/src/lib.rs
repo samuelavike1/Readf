@@ -2021,6 +2021,9 @@ impl PdfCraftApp {
             return;
         }
         self.left = LeftPanel::Tool(id);
+        // An explicit tool choice gives its controls the space previously used by navigation.
+        self.right = None;
+        self.pending_panel_reveals.retain(|panel| *panel != docking::Panel::Inspector);
         if self.mode == Mode::Read {
             self.mode = Mode::AllTools;
         }
@@ -2072,6 +2075,10 @@ impl PdfCraftApp {
     /// keeps comment tools from reopening it; opening it again lets them (#225). A choice made in
     /// Read mode replaces the pane saved on the way in, so leaving Read mode doesn't undo it.
     pub fn choose_right_panel(&mut self, panel: Option<RightPanel>) {
+        if panel.is_some() {
+            self.left_open = false;
+            self.pending_panel_reveals.retain(|panel| *panel != docking::Panel::Tools);
+        }
         if self.mode == Mode::Read {
             self.right_before_read = None;
         }
