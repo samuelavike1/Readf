@@ -60,6 +60,10 @@ pub struct TextLine {
     /// Some of the line's text is `/ActualText`, which is already in logical order: visual-order
     /// Indic recovery would scramble it.
     actual_text: bool,
+    /// Whether any of the line's runs draws in a clipping mode (`4 Tr` to `7 Tr`). The join below
+    /// does not require one rendering mode, so a line that starts as ink can continue as a mask;
+    /// [`refuse_clipping_text`] reads this rather than the origin's mode alone.
+    clips: bool,
 }
 
 impl TextLine {
@@ -462,6 +466,7 @@ struct Shown {
     glyph_count: usize,
     /// Advance in text space, including spacing and TJ adjustments.
     advance: f64,
+    tracking: f64,
     /// The text matrix where it starts (text space), and the state there and at its `BT`.
     tm: Matrix,
     tlm: Matrix,
@@ -473,6 +478,7 @@ struct Shown {
     baseline: f64,
     start_x: f64,
     end_x: f64,
+    end_y: f64,
     bt: usize,
     font: Vec<u8>,
     base_font: String,
@@ -485,6 +491,124 @@ struct Shown {
     scope: Option<usize>,
     logical_order: bool,
     actual_text: bool,
+}
+
+fn to_frame(dir: (f64, f64), p: (f64, f64)) -> (f64, f64) {
+    (p.0 * dir.0 + p.1 * dir.1, p.1 * dir.0 - p.0 * dir.1)
+}
+
+fn direction(m: &Matrix) -> (f64, f64) {
+    let (x, y) = (m.0[0], m.0[1]);
+    let length = x.hypot(y);
+    if length.is_finite() && length > 1e-9 { (x / length, y / length) } else { (1.0, 0.0) }
+}
+
+impl Shown {
+    /// The unit direction of its baseline, where it starts and ends along it, and the baseline's
+    /// offset across it (for upright text: the user-space x, x and y).
+    fn span(&self) -> ((f64, f64), f64, f64, f64) {
+        let dir = direction(&self.tm.then(&self.state.ctm));
+        let (start, across) = to_frame(dir, (self.start_x, self.baseline));
+        (dir, start, to_frame(dir, (self.end_x, self.end_y)).0, across)
+    }
+}
+
+/// Where the previous run of a line ended: its text object, baseline direction, offset across
+/// the baseline, end along it and size.
+#[derive(Clone, Copy)]
+struct Pen {
+    bt: usize,
+    dir: (f64, f64),
+    across: f64,
+    end: f64,
+    size: f64,
+}
+
+impl Pen {
+    fn after(s: &Shown) -> Self {
+        let (dir, _, end, across) = s.span();
+        Pen { bt: s.bt, dir, across, end, size: s.size.max(1.0) }
+    }
+
+    /// Whether `s` could continue the same line on geometry alone: on the same baseline, starting
+    /// at most a word gap (`reach` sizes) after it. Also the gap along the baseline.
+    fn continues(&self, s: &Shown, reach: f64) -> (bool, f64) {
+        let (dir, start, _, across) = s.span();
+        let gap = start - self.end;
+        let same_dir = (dir.0 - self.dir.0).abs() < 1e-3 && (dir.1 - self.dir.1).abs() < 1e-3;
+        (same_dir && (across - self.across).abs() < self.size * 0.3 && gap > -self.size && gap < self.size * reach, gap)
+    }
+}
+
+/// Use the lower third of letter gaps, not word gaps. A pair of isolated labels is not
+/// evidence of tracking; unadjusted neighbours inside a string contribute zero too.
+/// The tracking a run of glyphs was set with: the lower third of its gaps, when that is at
+/// most half an em (`limit`). A wider "tracking" is word or cell spacing between one-glyph
+/// words (`a b c`, a column of digits or Y/N ticks), which must keep its spaces.
+fn typical_tracking(gaps: &mut [f64], limit: f64) -> f64 {
+    if gaps.len() < 3 {
+        return 0.0;
+    }
+    let at = gaps.len() / 3;
+    gaps.select_nth_unstable_by(at, f64::total_cmp);
+    gaps.get(at).copied().filter(|n| n.is_finite() && *n <= limit).unwrap_or(0.0).max(0.0)
+}
+
+fn tj_tracking(pieces: &[Object], metrics: &Metrics, size: f64, scale: f64) -> f64 {
+    let mut gaps = Vec::new();
+    let mut previous = false;
+    let mut gap = 0.0;
+    for piece in pieces {
+        if let Object::String(s) = piece {
+            for (code, len) in metrics.codes(&s.bytes) {
+                let blank = metrics.is_space(code, len) || metrics.text_of(code).is_some_and(|t| !t.is_empty() && t.chars().all(char::is_whitespace));
+                if previous && !blank {
+                    gaps.push(gap);
+                }
+                previous = !blank;
+                gap = 0.0;
+            }
+        } else if let Some(n) = piece.as_f64() {
+            gap += -n / 1000.0 * size * scale;
+        }
+    }
+    typical_tracking(&mut gaps, size * scale.abs() * 0.5)
+}
+
+fn positioned_tracking(shown: &mut [Shown]) {
+    let mut start = 0;
+    while start < shown.len() {
+        let mut end = start.saturating_add(1);
+        while let (Some(prev), Some(next)) = (shown.get(end.saturating_sub(1)), shown.get(end)) {
+            if prev.glyph_count != 1
+                || next.glyph_count != 1
+                || prev.font != next.font
+                || prev.scope != next.scope
+                || (prev.size - next.size).abs() > 0.01
+                || prev.state.char_spacing != next.state.char_spacing
+                || prev.state.scale != next.state.scale
+                || !Pen::after(prev).continues(next, 1.5).0
+            {
+                break;
+            }
+            end = end.saturating_add(1);
+        }
+        if let Some(run) = shown.get_mut(start..end) {
+            let mut gaps: Vec<f64> = run
+                .windows(2)
+                .filter_map(|pair| {
+                    let [prev, next] = pair else { return None };
+                    (!prev.text.trim().is_empty() && !next.text.trim().is_empty()).then(|| Pen::after(prev).continues(next, 0.0).1)
+                })
+                .collect();
+            let limit = run.first().map_or(0.0, |s| s.size * s.state.scale.abs() * 0.5);
+            let tracking = typical_tracking(&mut gaps, limit);
+            for s in run.iter_mut().skip(1) {
+                s.tracking = tracking;
+            }
+        }
+        start = end;
+    }
 }
 
 /// The graphics state carried from one of a page's content streams to the next: the streams
@@ -659,6 +783,8 @@ fn interpret(
                     b"TJ" => op.operands.first().and_then(Object::as_array).cloned().unwrap_or_default(),
                     _ => op.operands.last().cloned().into_iter().collect(),
                 };
+                // Tc is already included in the pen advance; TJ may encode tracking instead.
+                let tracking = if op.is("TJ") { tj_tracking(&pieces, &m, ts.size, ts.scale) } else { 0.0 };
                 let trm0 = tm.then(&ts.ctm);
                 let start = trm0.apply(0.0, ts.rise);
                 let mut text = String::new();
@@ -682,7 +808,7 @@ fn interpret(
                             if let Some(n) = other.as_f64() {
                                 let dx = -n / 1000.0 * ts.size * ts.scale;
                                 // A large gap inside TJ reads as a space.
-                                if dx > ts.size * 0.2 && !text.ends_with(' ') {
+                                if dx - tracking > (ts.size * ts.scale).abs() * 0.2 && !text.ends_with(' ') {
                                     text.push(' ');
                                 }
                                 x_text += dx;
@@ -713,6 +839,7 @@ fn interpret(
                     extra_ops: Vec::new(),
                     glyph_count,
                     advance: x_text,
+                    tracking: 0.0,
                     tm: Matrix([tm.0[0], tm.0[1], tm.0[2], tm.0[3], tm.0[4] - x_text * tm.0[0], tm.0[5] - x_text * tm.0[1]]),
                     state: ts.clone(),
                     tlm,
@@ -723,6 +850,7 @@ fn interpret(
                     baseline: start.1,
                     start_x: start.0,
                     end_x: end.0,
+                    end_y: end.1,
                     bt,
                     font: name,
                     base_font: m.base_font.clone(),
@@ -743,6 +871,7 @@ fn interpret(
     carry.ts = ts;
     carry.stack = stack;
     carry.marked = marked;
+    positioned_tracking(&mut out);
     out
 }
 
@@ -759,7 +888,7 @@ pub fn text_lines(doc: &Document, page: usize) -> Result<Vec<TextLine>, EditErro
     let pieces = Pieces::join(&content_streams(doc, &p.dict).into_iter().map(|(_, d)| d).collect::<Vec<_>>());
     let ops = pieces.parse().ops;
     let shown = interpret(doc, &ops, &fonts_res, &mut cache, &mut carry, None, true);
-    let mut last: Option<(usize, usize, f64, f64, f64)> = None; // (piece, bt, baseline, end_x, size)
+    let mut last: Option<(usize, Pen)> = None; // the stream piece and where its last run ended
     for mut s in shown {
         // A single RTL glyph's ActualText (e.g. lam-alef) is an inline ligature, not a
         // separate logical line. Put its letters into visual order before joining the
@@ -772,7 +901,9 @@ pub fn text_lines(doc: &Document, page: usize) -> Result<Vec<TextLine>, EditErro
         // A line belongs to one stream piece. Within it, PDF producers often put every word
         // in its own BT/ET: geometry and text state, not object boundaries, define a line.
         let si = ops.get(s.op).map_or(0, |op| pieces.pieces_of(op).0);
-        let joins = last.is_some_and(|(piece, bt, base, end, size)| {
+        let joins = last.is_some_and(|(piece, pen)| {
+            let bt = pen.bt;
+            let (near, gap) = pen.continues(&s, if bt == s.bt { 3.0 } else { 1.5 });
             piece == si
                 && lines.last().is_some_and(|l| l.scope == s.scope && l.logical_order == s.logical_order)
                 && (bt == s.bt || lines.last().is_some_and(|l| compatible_word(l, &s)))
@@ -781,16 +912,14 @@ pub fn text_lines(doc: &Document, page: usize) -> Result<Vec<TextLine>, EditErro
                     || lines.last().is_some_and(|l| {
                         (s.size - l.size).abs() < 0.01 && s.bold == l.bold && s.italic == l.italic && fill_color(&s.state.fill) == l.color
                     }))
-                && (s.baseline - base).abs() < size * 0.3
-                && s.start_x > end - size
-                && s.start_x - end < size * if bt == s.bt { 3.0 } else { 1.5 }
+                && near
                 // An OCR layer is one text object over the whole scan: its words continue a line
                 // only across a word space, not across a table cell or a tab stop.
-                && (s.state.render_mode != 3 || s.start_x - end < size * 0.6)
+                && (s.state.render_mode != 3 || gap < pen.size * 0.6)
         });
         if joins && let Some(l) = lines.last_mut() {
-            let gap = s.start_x - last.map_or(s.start_x, |x| x.3);
-            if gap > l.size * 0.2 && !l.text.ends_with(' ') && !s.text.starts_with(' ') {
+            let gap = last.map_or(0.0, |(_, pen)| pen.continues(&s, 0.0).1);
+            if gap - s.tracking > l.size * s.state.scale.abs() * 0.2 && !l.text.ends_with(' ') && !s.text.starts_with(' ') {
                 l.text.push(' ');
             }
             l.text.push_str(&s.text);
@@ -800,6 +929,7 @@ pub fn text_lines(doc: &Document, page: usize) -> Result<Vec<TextLine>, EditErro
             l.decodable &= s.decodable;
             l.visual_order |= s.visual_order;
             l.actual_text |= s.actual_text;
+            l.clips |= s.state.render_mode >= 4;
             // Spaces may use a separate subset font; they do not change the visible style.
         } else {
             lines.push(TextLine {
@@ -818,6 +948,7 @@ pub fn text_lines(doc: &Document, page: usize) -> Result<Vec<TextLine>, EditErro
                 scope: s.scope,
                 logical_order: s.logical_order,
                 actual_text: s.actual_text,
+                clips: s.state.render_mode >= 4,
                 ops: std::iter::once(s.op).chain(s.extra_ops.iter().copied()).collect(),
                 origin: Origin {
                     tm: s.tm.0,
@@ -832,7 +963,7 @@ pub fn text_lines(doc: &Document, page: usize) -> Result<Vec<TextLine>, EditErro
                 },
             });
         }
-        last = Some((si, s.bt, s.baseline, s.end_x, s.size.max(1.0)));
+        last = Some((si, Pen::after(&s)));
     }
     // Content streams draw right-to-left lines in visual order; the editor works in typing order.
     for l in lines.iter_mut().filter(|l| !l.logical_order) {
@@ -862,8 +993,9 @@ fn compatible_word(line: &TextLine, shown: &Shown) -> bool {
 
 /// The line `s` continues, or a new one: `last` is the previous run of the same stream
 /// (`bt`, baseline, end x, size).
-fn add_shown(lines: &mut Vec<TextLine>, last: &mut Option<(usize, f64, f64, f64)>, s: Shown, stream: usize) {
-    let joins = last.is_some_and(|(bt, base, end, size)| {
+fn add_shown(lines: &mut Vec<TextLine>, last: &mut Option<Pen>, s: Shown, stream: usize) {
+    let joins = last.is_some_and(|pen| {
+        let bt = pen.bt;
         lines.last().is_some_and(|l| l.scope == s.scope && l.logical_order == s.logical_order)
             && (bt == s.bt || lines.last().is_some_and(|l| compatible_word(l, &s)))
             && (s.text.trim().is_empty() || lines.last().is_some_and(|l| same_font(l, &s.font, s.face.as_deref())))
@@ -871,13 +1003,11 @@ fn add_shown(lines: &mut Vec<TextLine>, last: &mut Option<(usize, f64, f64, f64)
                 || lines.last().is_some_and(|l| {
                     (s.size - l.size).abs() < 0.01 && s.bold == l.bold && s.italic == l.italic && fill_color(&s.state.fill) == l.color
                 }))
-            && (s.baseline - base).abs() < size * 0.3
-            && s.start_x > end - size
-            && s.start_x - end < size * if bt == s.bt { 3.0 } else { 1.5 }
+            && pen.continues(&s, if bt == s.bt { 3.0 } else { 1.5 }).0
     });
     if joins && let Some(l) = lines.last_mut() {
-        let gap = s.start_x - last.map_or(s.start_x, |x| x.2);
-        if gap > l.size * 0.2 && !l.text.ends_with(' ') && !s.text.starts_with(' ') {
+        let gap = last.map_or(0.0, |pen| pen.continues(&s, 0.0).1);
+        if gap - s.tracking > l.size * s.state.scale.abs() * 0.2 && !l.text.ends_with(' ') && !s.text.starts_with(' ') {
             l.text.push(' ');
         }
         l.text.push_str(&s.text);
@@ -887,6 +1017,7 @@ fn add_shown(lines: &mut Vec<TextLine>, last: &mut Option<(usize, f64, f64, f64)
         l.decodable &= s.decodable;
         l.visual_order |= s.visual_order;
         l.actual_text |= s.actual_text;
+        l.clips |= s.state.render_mode >= 4;
     } else {
         lines.push(TextLine {
             text: s.text.clone(),
@@ -904,6 +1035,7 @@ fn add_shown(lines: &mut Vec<TextLine>, last: &mut Option<(usize, f64, f64, f64)
             scope: s.scope,
             logical_order: s.logical_order,
             actual_text: s.actual_text,
+            clips: s.state.render_mode >= 4,
             ops: std::iter::once(s.op).chain(s.extra_ops.iter().copied()).collect(),
             origin: Origin {
                 tm: s.tm.0,
@@ -918,7 +1050,7 @@ fn add_shown(lines: &mut Vec<TextLine>, last: &mut Option<(usize, f64, f64, f64)
             },
         });
     }
-    *last = Some((s.bt, s.baseline, s.end_x, s.size.max(1.0)));
+    *last = Some(Pen::after(&s));
 }
 
 /// How deep form XObjects nest before reading stops (they may also refer to themselves).
@@ -1406,11 +1538,33 @@ pub fn replace_line(doc: &mut Document, page: usize, line: usize, text: &str) ->
     replace_line_with_limit(doc, page, line, text, MAX_TYPE3_GLYPHS)
 }
 
+/// Refuses a rewrite that would remove text drawn as a clipping path (`4 Tr` to `7 Tr`). Such
+/// glyphs are not ink but a mask, and whatever is painted through them takes their shape.
+/// Removing the glyphs removes the mask, and the fill or image behind floods its own rectangle
+/// instead -- the artwork is destroyed, in a file that still opens without a warning (#3429).
+/// `clear_block` already refuses these for the same reason.
+///
+/// Every line the rewrite drops is checked, not only the one being replaced: a line's runs need
+/// not share a rendering mode (see [`TextLine::clips`]), and [`coincident_ops`] drops a whole
+/// overlapping line without regard to its mode -- so a mask could go with text that is ink.
+fn refuse_clipping_text(lines: &[TextLine], dropped: &std::collections::HashSet<usize>) -> Result<(), EditError> {
+    if lines.iter().any(|l| l.clips && l.ops.iter().any(|op| dropped.contains(op))) {
+        return Err(EditError::Invalid("text used as a clipping path cannot be edited: its glyphs mask the artwork behind them".into()));
+    }
+    Ok(())
+}
+
 /// [`replace_line`] with the most unique characters one generated font may hold (tests lower it).
 pub(crate) fn replace_line_with_limit(doc: &mut Document, page: usize, line: usize, text: &str, max_glyphs: usize) -> Result<LineEdit, EditError> {
     let text = text.replace(['\n', '\r'], " ");
     let lines = text_lines(doc, page)?;
     let target = lines.get(line).cloned().ok_or_else(|| EditError::Invalid(format!("page {} has no line {}", page + 1, line + 1)))?;
+    // Copies of the line drawn on the same baseline go with it, so the replacement is all that
+    // shows. Which operators go is settled here, before any font is generated, so that a refusal
+    // leaves the document untouched.
+    let mut drops = coincident_ops(&lines, &[&target]);
+    drops.extend(target.ops.iter().copied());
+    refuse_clipping_text(&lines, &drops)?;
     let p = page_dict(doc, page)?;
     let mut res = p.dict.get(b"Resources").map(|r| doc.resolve(r)).and_then(|r| r.as_dict().cloned()).unwrap_or_default();
     let mut fonts_res = res.get(b"Font").map(|f| doc.resolve(f)).and_then(|f| f.as_dict().cloned()).unwrap_or_default();
@@ -1486,7 +1640,6 @@ pub(crate) fn replace_line_with_limit(doc: &mut Document, page: usize, line: usi
     }
     // Rebuild: the line's first operator becomes the replacement, its others go. Copies of the
     // line drawn on the same baseline go too, so the replacement is all that shows.
-    let drops = coincident_ops(&lines, &[&target]);
     let new_data = splice(&pieces, &ops, |i| if i == first { (std::mem::take(&mut replacement), false) } else { (Vec::new(), !drops.contains(&i)) });
     let contents = rewritten_contents(doc, &streams, new_data);
     let page_ref = p.obj;
@@ -1699,6 +1852,10 @@ pub(crate) fn rewrite_block_with_limit(
     let blocks = group_blocks(&lines);
     let b = blocks.get(block).cloned().ok_or_else(|| EditError::Invalid(format!("page {} has no paragraph {}", page + 1, block + 1)))?;
     let members: Vec<&TextLine> = b.lines.iter().map(|i| &lines[*i]).collect();
+    // One clipping run is enough: rewriting the paragraph would drop its mask with the rest.
+    let mut dropped = coincident_ops(&lines, &members);
+    dropped.extend(members.iter().flat_map(|l| l.ops.iter().copied()));
+    refuse_clipping_text(&lines, &dropped)?;
     let first = members.first().copied().ok_or_else(|| EditError::Invalid("the paragraph has no source runs".into()))?;
     let p = page_dict(doc, page)?;
     let mut res = p.dict.get(b"Resources").map(|r| doc.resolve(r)).and_then(|r| r.as_dict().cloned()).unwrap_or_default();
