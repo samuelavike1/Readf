@@ -5717,3 +5717,50 @@ fn absolute_gotor_consent_does_not_bypass_validation_or_passwords() {
     assert_eq!(opened["document"]["encrypted"], true);
     assert_eq!(opened["destination_applied"], true);
 }
+
+/// Tag cleanup can refuse after mutating its working copy. The session must discard that
+/// copy: neither comments nor the saved source may change on a refused sanitization.
+#[test]
+fn refused_tag_cleanup_preserves_the_document_through_tools() {
+    use pdfcraft_cos::{Dict, Document, Object, PdfString, SaveOptions, write_full};
+    use std::sync::Arc;
+    let dir = workdir("refused-tag-cleanup");
+    let mut source = Document::open(Arc::new(fixture(1))).unwrap();
+    let page = pdfcraft_model::pages(&source)[0].obj;
+    let mut note = Dict::new();
+    note.set(b"Type".to_vec(), Object::name("Annot"));
+    note.set(b"Subtype".to_vec(), Object::name("Text"));
+    note.set(b"Rect".to_vec(), Object::Array(vec![10.into(), 20.into(), 30.into(), 40.into()]));
+    note.set(b"Contents".to_vec(), PdfString::text("Keep this comment after refusal"));
+    let note = source.add(note);
+    source.update_dict(page, |p| p.set(b"Annots".to_vec(), Object::Array(vec![Object::Ref(note)]))).unwrap();
+    let mut objr = Dict::new();
+    objr.set(b"Type".to_vec(), Object::name("OBJR"));
+    objr.set(b"Obj".to_vec(), Object::Ref(note));
+    let mut element = Dict::new();
+    element.set(b"S".to_vec(), Object::name("Note"));
+    element.set(b"K".to_vec(), Object::Dict(objr));
+    let mut tree = Dict::new();
+    tree.set(b"Type".to_vec(), Object::name("StructTreeRoot"));
+    tree.set(b"K".to_vec(), Object::Dict(element));
+    let tree = source.add(tree);
+    source.update_dict(source.root().unwrap(), |c| c.set(b"StructTreeRoot".to_vec(), Object::Ref(tree))).unwrap();
+    let bytes = write_full(&source, &SaveOptions::default()).unwrap();
+    std::fs::write(dir.join("tagged.pdf"), &bytes).unwrap();
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({ "path": "tagged.pdf" }))["doc"].as_u64().unwrap();
+    let before = ok(&mut a, "comment_list", json!({ "doc": doc }));
+    // Compare the session's save output before and after refusal, as well as its dirty flag.
+    let id = pdfcraft_engine::DocId(doc);
+    let before_save = a.session().save_bytes(id).unwrap();
+    let before_dirty = a.session().get(id).unwrap().dirty;
+    let error = a.call("doc_remove_hidden", &json!({ "doc": doc, "categories": ["comments"] })).unwrap_err();
+    assert!(error.to_string().contains("tags can't be cleaned"), "{error}");
+    assert_eq!(ok(&mut a, "comment_list", json!({ "doc": doc })), before);
+    assert_eq!(a.session().get(id).unwrap().dirty, before_dirty);
+    assert_eq!(a.session().save_bytes(id).unwrap(), before_save);
+    // Ask for the normal Save bytes explicitly; a new path otherwise selects a full Save As.
+    ok(&mut a, "doc_save", json!({ "doc": doc, "path": "unchanged.pdf", "full": false }));
+    assert_eq!(&std::fs::read(dir.join("unchanged.pdf")).unwrap(), before_save.as_ref());
+    assert_eq!(std::fs::read(dir.join("tagged.pdf")).unwrap(), bytes);
+}
