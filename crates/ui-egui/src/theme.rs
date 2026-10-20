@@ -1,5 +1,5 @@
-//! Design tokens and egui style (plan/acrobat/02-ui-ux.md §1: neutral chrome, white panels,
-//! one red accent; Dark Gray keeps pages white). Every custom widget reads `Tokens::get`.
+//! Readf design tokens: neutral surfaces, clear interaction states and a restrained blue accent.
+//! Every custom widget reads `Tokens::get`; document colours are independent of the UI theme.
 
 use std::sync::Arc;
 
@@ -79,49 +79,49 @@ impl Tokens {
         match kind {
             ThemeKind::Light => Self {
                 kind,
-                titlebar: Color32::from_rgb(0xE9, 0xE9, 0xEB),
-                chrome: Color32::from_rgb(0xFF, 0xFF, 0xFF),
+                titlebar: Color32::from_rgb(0xDE, 0xE3, 0xE9),
+                chrome: Color32::from_rgb(0xF4, 0xF6, 0xF8),
                 panel: Color32::from_rgb(0xFF, 0xFF, 0xFF),
-                pasteboard: Color32::from_rgb(0xF1, 0xF1, 0xF3),
+                pasteboard: Color32::from_rgb(0xD7, 0xDC, 0xE2),
                 card: Color32::from_rgb(0xFF, 0xFF, 0xFF),
-                border: Color32::from_rgb(0xDA, 0xDA, 0xDE),
-                divider: Color32::from_rgb(0xE8, 0xE8, 0xEB),
-                text: Color32::from_rgb(0x22, 0x22, 0x26),
-                text_muted: Color32::from_rgb(0x5E, 0x5E, 0x66),
-                text_faint: Color32::from_rgb(0x6B, 0x6B, 0x73),
-                icon: Color32::from_rgb(0x44, 0x44, 0x4B),
-                hover: Color32::from_rgb(0xF0, 0xF0, 0xF3),
-                pressed: Color32::from_rgb(0xE4, 0xE4, 0xE9),
-                selected: Color32::from_rgb(0xFE, 0xCA, 0xCA),
-                accent: Color32::from_rgb(0xDC, 0x26, 0x26),
-                accent_text: Color32::from_rgb(0xB9, 0x1C, 0x1C),
-                accent_soft: Color32::from_rgb(0xFE, 0xE2, 0xE2),
-                field: Color32::from_rgb(0xFA, 0xFA, 0xFB),
-                badge_new: Color32::from_rgb(0xDC, 0x26, 0x26),
+                border: Color32::from_rgb(0x81, 0x8C, 0x99),
+                divider: Color32::from_rgb(0xC4, 0xCB, 0xD3),
+                text: Color32::from_rgb(0x17, 0x21, 0x2B),
+                text_muted: Color32::from_rgb(0x46, 0x53, 0x61),
+                text_faint: Color32::from_rgb(0x4A, 0x57, 0x65),
+                icon: Color32::from_rgb(0x30, 0x3E, 0x4D),
+                hover: Color32::from_rgb(0xD9, 0xE0, 0xE8),
+                pressed: Color32::from_rgb(0xC1, 0xCC, 0xD9),
+                selected: Color32::from_rgb(0xBD, 0xD7, 0xF2),
+                accent: Color32::from_rgb(0x17, 0x5F, 0xA8),
+                accent_text: Color32::from_rgb(0x12, 0x4F, 0x8C),
+                accent_soft: Color32::from_rgb(0xE0, 0xEC, 0xF8),
+                field: Color32::from_rgb(0xF4, 0xF6, 0xF8),
+                badge_new: Color32::from_rgb(0x17, 0x5F, 0xA8),
                 page_shadow: Color32::from_black_alpha(34),
                 radius: RADIUS_CONTROL,
             },
             ThemeKind::Dark => Self {
                 kind,
-                titlebar: Color32::from_rgb(0x1B, 0x1B, 0x1E),
-                chrome: Color32::from_rgb(0x26, 0x26, 0x2A),
-                panel: Color32::from_rgb(0x26, 0x26, 0x2A),
-                pasteboard: Color32::from_rgb(0x19, 0x19, 0x1C),
-                card: Color32::from_rgb(0x2E, 0x2E, 0x33),
-                border: Color32::from_rgb(0x3C, 0x3C, 0x43),
-                divider: Color32::from_rgb(0x33, 0x33, 0x39),
-                text: Color32::from_rgb(0xEC, 0xEC, 0xEF),
-                text_muted: Color32::from_rgb(0xAE, 0xAE, 0xB6),
-                text_faint: Color32::from_rgb(0x97, 0x97, 0x9E),
-                icon: Color32::from_rgb(0xD4, 0xD4, 0xDA),
-                hover: Color32::from_rgb(0x34, 0x34, 0x3A),
-                pressed: Color32::from_rgb(0x3E, 0x3E, 0x45),
-                selected: Color32::from_rgb(0x50, 0x20, 0x20),
-                accent: Color32::from_rgb(0xDC, 0x26, 0x26),
-                accent_text: Color32::from_rgb(0xFC, 0xA5, 0xA5),
-                accent_soft: Color32::from_rgb(0x3B, 0x20, 0x20),
-                field: Color32::from_rgb(0x1E, 0x1E, 0x22),
-                badge_new: Color32::from_rgb(0xDC, 0x26, 0x26),
+                titlebar: Color32::from_rgb(0x19, 0x1D, 0x23),
+                chrome: Color32::from_rgb(0x24, 0x29, 0x30),
+                panel: Color32::from_rgb(0x24, 0x29, 0x30),
+                pasteboard: Color32::from_rgb(0x14, 0x18, 0x1D),
+                card: Color32::from_rgb(0x2B, 0x31, 0x39),
+                border: Color32::from_rgb(0x77, 0x82, 0x8E),
+                divider: Color32::from_rgb(0x48, 0x52, 0x5E),
+                text: Color32::from_rgb(0xF4, 0xF6, 0xF8),
+                text_muted: Color32::from_rgb(0xCD, 0xD3, 0xDC),
+                text_faint: Color32::from_rgb(0xC1, 0xCA, 0xD5),
+                icon: Color32::from_rgb(0xE0, 0xE5, 0xEC),
+                hover: Color32::from_rgb(0x42, 0x4F, 0x60),
+                pressed: Color32::from_rgb(0x38, 0x47, 0x5A),
+                selected: Color32::from_rgb(0x33, 0x55, 0x79),
+                accent: Color32::from_rgb(0x28, 0x6F, 0xBD),
+                accent_text: Color32::from_rgb(0xB0, 0xD6, 0xFF),
+                accent_soft: Color32::from_rgb(0x29, 0x3F, 0x58),
+                field: Color32::from_rgb(0x19, 0x1F, 0x26),
+                badge_new: Color32::from_rgb(0x28, 0x6F, 0xBD),
                 page_shadow: Color32::from_black_alpha(120),
                 radius: RADIUS_CONTROL,
             },
@@ -159,6 +159,11 @@ impl Press {
 
     pub fn fill(self, rest: Color32, hover: Color32, pressed: Color32) -> Color32 {
         rest.lerp_to_gamma(hover, self.hover).lerp_to_gamma(pressed, self.down)
+    }
+
+    /// Filled actions retain white-label contrast in both themes, including on hover.
+    pub fn primary_fill(self, t: &Tokens) -> Color32 {
+        self.fill(t.accent, t.accent.lerp_to_gamma(Color32::BLACK, 0.18), t.accent.lerp_to_gamma(Color32::BLACK, 0.32))
     }
 
     /// One pixel down at a full press.
@@ -448,6 +453,7 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
     v.selection.stroke = Stroke::new(1.0, t.accent);
     v.hyperlink_color = t.accent_text;
     v.override_text_color = Some(t.text);
+    v.weak_text_color = Some(t.text_muted);
     v.window_corner_radius = CornerRadius::same(RADIUS_SURFACE);
     v.menu_corner_radius = CornerRadius::same(RADIUS_SURFACE);
     v.window_shadow = egui::Shadow { offset: [0, 8], blur: 28, spread: 0, color: Color32::from_black_alpha(if t.dark() { 110 } else { 38 }) };
@@ -462,12 +468,15 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
     v.widgets.inactive.bg_stroke = Stroke::NONE;
     v.widgets.hovered.weak_bg_fill = t.hover;
     v.widgets.hovered.bg_fill = t.hover;
-    v.widgets.hovered.bg_stroke = Stroke::NONE;
+    v.widgets.hovered.bg_stroke = Stroke::new(1.0, t.border);
     v.widgets.active.weak_bg_fill = t.pressed;
     v.widgets.active.bg_fill = t.pressed;
+    v.widgets.active.bg_stroke = Stroke::new(1.5, t.accent_text);
     // Stock buttons (menus, dialogs) use the same pointing hand as the custom chrome.
     v.interact_cursor = Some(egui::CursorIcon::PointingHand);
-    v.widgets.open.weak_bg_fill = t.hover;
+    v.widgets.open.weak_bg_fill = t.selected;
+    v.widgets.open.bg_fill = t.selected;
+    v.widgets.open.bg_stroke = Stroke::new(1.0, t.accent_text);
     // Crisper text at 100–150 % scaling (#76): glyphs sit on whole pixels instead of being
     // rendered at quarter-pixel offsets, which egui notes blurs them. In the light theme, a mild
     // gamma darkens the antialiased edges of dark text (egui's default is linear, which reads thin

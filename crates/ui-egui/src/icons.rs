@@ -44,7 +44,7 @@ pub fn button(ui: &mut egui::Ui, name: &str, box_size: f32, selected: bool, tool
         pressed: Some(clear(t.icon)),
         selected: clear(t.accent_text),
         corner_radius: t.radius.into(),
-        focus_stroke: Stroke::new(1.0, t.accent),
+        focus_stroke: Stroke::new(2.0, t.accent_text),
     };
     let label = if tooltip.is_empty() { name } else { tooltip };
     // The wash eases from the response, so reserve its place under the icon and focus ring.
@@ -59,12 +59,7 @@ pub fn button(ui: &mut egui::Ui, name: &str, box_size: f32, selected: bool, tool
             shapes.push(egui::Shape::rect_filled(rect, t.radius, fill));
         }
         if selected {
-            shapes.push(egui::Shape::rect_stroke(
-                rect.shrink(0.5),
-                t.radius,
-                Stroke::new(1.0, t.accent.gamma_multiply(0.45)),
-                egui::StrokeKind::Inside,
-            ));
+            shapes.push(egui::Shape::rect_stroke(rect.shrink(0.5), t.radius, Stroke::new(1.0, t.accent_text), egui::StrokeKind::Inside));
         }
         ui.painter().set(wash, egui::Shape::Vec(shapes));
         // The glyph shrinks a little and drops a pixel while the pointer is down.
