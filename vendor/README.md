@@ -59,3 +59,11 @@ The existing upstream sources and licences above still apply.
 | [#1954](https://github.com/storytold/pdfcraft/commit/e4657eb5) | hayro-syntax: ASCII85 respects the stream output limit | `decompression_bombs_stop_at_the_stream_limit` |
 | [#2027](https://github.com/storytold/pdfcraft/commit/15d82b5b) | hayro-interpret: neutral, non-isolated transparency groups preserve Multiply highlights over text | `a_multiply_highlight_inside_a_transparency_group_keeps_the_text` |
 | [#2132](https://github.com/storytold/pdfcraft/commit/210fb904) | hayro: gradient fills under soft masks use the sampled shading path | `soft_mask_applies_to_a_shading_pattern_fill` |
+
+## Readf Type 3 shading backport (2026-10-20)
+
+`hayro-interpret/src/font/type3.rs` includes upstream PdfCraft commit
+[`8b88a2d1`](https://github.com/storytold/pdfcraft/commit/8b88a2d1): transform
+`FontBBox` from glyph space into device space before initializing a Type 3 glyph's
+clip/shading context. Regression: `raster::tests::shaded_type3_glyph_draws_at_multiple_positions`.
+This changes PDF rendering, not the application interface.
