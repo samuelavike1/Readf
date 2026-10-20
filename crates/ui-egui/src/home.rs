@@ -24,10 +24,10 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tl!("Open file")));
                     let press = theme::Press::track(ui, &resp);
                     ui.painter().rect_filled(rect, CornerRadius::same(theme::RADIUS_CONTROL), press.primary_fill(&t));
-                    let label = ui.painter().layout_no_wrap(tl!("Open file").to_owned(), theme::medium(19.0), egui::Color32::WHITE);
+                    let label = ui.painter().layout_no_wrap(tl!("Open file").to_owned(), theme::medium(19.0), t.primary_text);
                     let start = rect.center() - vec2((label.size().x + 40.0) * 0.5, 0.0);
-                    icons::paint(ui, Rect::from_center_size(start + vec2(13.0, 0.0), vec2(26.0, 26.0)), "folder-open", 26.0, egui::Color32::WHITE);
-                    ui.painter().galley(start + vec2(40.0, -label.size().y * 0.5), label, egui::Color32::WHITE);
+                    icons::paint(ui, Rect::from_center_size(start + vec2(13.0, 0.0), vec2(26.0, 26.0)), "folder-open", 26.0, t.primary_text);
+                    ui.painter().galley(start + vec2(40.0, -label.size().y * 0.5), label, t.primary_text);
                     widgets::focus_outline(ui, &resp);
                     if theme::hand(resp).clicked() {
                         app.open_dialog();

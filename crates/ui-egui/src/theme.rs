@@ -1,4 +1,4 @@
-//! Readf design tokens: neutral surfaces, clear interaction states and a restrained blue accent.
+//! Readf design tokens: untinted neutral surfaces, monochrome actions and restrained selection colour.
 //! Every custom widget reads `Tokens::get`; document colours are independent of the UI theme.
 
 use std::sync::Arc;
@@ -65,6 +65,9 @@ pub struct Tokens {
     pub hover: Color32,
     pub pressed: Color32,
     pub selected: Color32,
+    /// Filled actions are independent of the selection/focus accent.
+    pub primary: Color32,
+    pub primary_text: Color32,
     pub accent: Color32,
     pub accent_text: Color32,
     pub accent_soft: Color32,
@@ -79,49 +82,53 @@ impl Tokens {
         match kind {
             ThemeKind::Light => Self {
                 kind,
-                titlebar: Color32::from_rgb(0xDE, 0xE3, 0xE9),
-                chrome: Color32::from_rgb(0xF4, 0xF6, 0xF8),
+                titlebar: Color32::from_rgb(0xE5, 0xE5, 0xE5),
+                chrome: Color32::from_rgb(0xFA, 0xFA, 0xFA),
                 panel: Color32::from_rgb(0xFF, 0xFF, 0xFF),
-                pasteboard: Color32::from_rgb(0xD7, 0xDC, 0xE2),
+                pasteboard: Color32::from_rgb(0xE5, 0xE5, 0xE5),
                 card: Color32::from_rgb(0xFF, 0xFF, 0xFF),
-                border: Color32::from_rgb(0x81, 0x8C, 0x99),
-                divider: Color32::from_rgb(0xC4, 0xCB, 0xD3),
-                text: Color32::from_rgb(0x17, 0x21, 0x2B),
-                text_muted: Color32::from_rgb(0x46, 0x53, 0x61),
-                text_faint: Color32::from_rgb(0x4A, 0x57, 0x65),
-                icon: Color32::from_rgb(0x30, 0x3E, 0x4D),
-                hover: Color32::from_rgb(0xD9, 0xE0, 0xE8),
-                pressed: Color32::from_rgb(0xC1, 0xCC, 0xD9),
+                border: Color32::from_rgb(0x8A, 0x8A, 0x8A),
+                divider: Color32::from_rgb(0xCC, 0xCC, 0xCC),
+                text: Color32::from_rgb(0x0A, 0x0A, 0x0A),
+                text_muted: Color32::from_rgb(0x52, 0x52, 0x52),
+                text_faint: Color32::from_rgb(0x55, 0x55, 0x55),
+                icon: Color32::from_rgb(0x40, 0x40, 0x40),
+                hover: Color32::from_rgb(0xE5, 0xE5, 0xE5),
+                pressed: Color32::from_rgb(0xCC, 0xCC, 0xCC),
                 selected: Color32::from_rgb(0xBD, 0xD7, 0xF2),
+                primary: Color32::from_rgb(0x17, 0x17, 0x17),
+                primary_text: Color32::from_rgb(0xFA, 0xFA, 0xFA),
                 accent: Color32::from_rgb(0x17, 0x5F, 0xA8),
                 accent_text: Color32::from_rgb(0x12, 0x4F, 0x8C),
                 accent_soft: Color32::from_rgb(0xE0, 0xEC, 0xF8),
-                field: Color32::from_rgb(0xF4, 0xF6, 0xF8),
-                badge_new: Color32::from_rgb(0x17, 0x5F, 0xA8),
+                field: Color32::from_rgb(0xF5, 0xF5, 0xF5),
+                badge_new: Color32::from_rgb(0x40, 0x40, 0x40),
                 page_shadow: Color32::from_black_alpha(34),
                 radius: RADIUS_CONTROL,
             },
             ThemeKind::Dark => Self {
                 kind,
-                titlebar: Color32::from_rgb(0x19, 0x1D, 0x23),
-                chrome: Color32::from_rgb(0x24, 0x29, 0x30),
-                panel: Color32::from_rgb(0x24, 0x29, 0x30),
-                pasteboard: Color32::from_rgb(0x14, 0x18, 0x1D),
-                card: Color32::from_rgb(0x2B, 0x31, 0x39),
-                border: Color32::from_rgb(0x77, 0x82, 0x8E),
-                divider: Color32::from_rgb(0x48, 0x52, 0x5E),
-                text: Color32::from_rgb(0xF4, 0xF6, 0xF8),
-                text_muted: Color32::from_rgb(0xCD, 0xD3, 0xDC),
-                text_faint: Color32::from_rgb(0xC1, 0xCA, 0xD5),
-                icon: Color32::from_rgb(0xE0, 0xE5, 0xEC),
-                hover: Color32::from_rgb(0x42, 0x4F, 0x60),
-                pressed: Color32::from_rgb(0x38, 0x47, 0x5A),
-                selected: Color32::from_rgb(0x33, 0x55, 0x79),
+                titlebar: Color32::from_rgb(0x10, 0x10, 0x10),
+                chrome: Color32::from_rgb(0x17, 0x17, 0x17),
+                panel: Color32::from_rgb(0x17, 0x17, 0x17),
+                pasteboard: Color32::from_rgb(0x0A, 0x0A, 0x0A),
+                card: Color32::from_rgb(0x20, 0x20, 0x20),
+                border: Color32::from_rgb(0x73, 0x73, 0x73),
+                divider: Color32::from_rgb(0x40, 0x40, 0x40),
+                text: Color32::from_rgb(0xFA, 0xFA, 0xFA),
+                text_muted: Color32::from_rgb(0xCC, 0xCC, 0xCC),
+                text_faint: Color32::from_rgb(0xBD, 0xBD, 0xBD),
+                icon: Color32::from_rgb(0xE5, 0xE5, 0xE5),
+                hover: Color32::from_rgb(0x38, 0x38, 0x38),
+                pressed: Color32::from_rgb(0x30, 0x30, 0x30),
+                selected: Color32::from_rgb(0x2B, 0x46, 0x63),
+                primary: Color32::from_rgb(0xE5, 0xE5, 0xE5),
+                primary_text: Color32::from_rgb(0x17, 0x17, 0x17),
                 accent: Color32::from_rgb(0x28, 0x6F, 0xBD),
                 accent_text: Color32::from_rgb(0xB0, 0xD6, 0xFF),
                 accent_soft: Color32::from_rgb(0x29, 0x3F, 0x58),
-                field: Color32::from_rgb(0x19, 0x1F, 0x26),
-                badge_new: Color32::from_rgb(0x28, 0x6F, 0xBD),
+                field: Color32::from_rgb(0x0F, 0x0F, 0x0F),
+                badge_new: Color32::from_rgb(0x52, 0x52, 0x52),
                 page_shadow: Color32::from_black_alpha(120),
                 radius: RADIUS_CONTROL,
             },
@@ -161,9 +168,10 @@ impl Press {
         rest.lerp_to_gamma(hover, self.hover).lerp_to_gamma(pressed, self.down)
     }
 
-    /// Filled actions retain white-label contrast in both themes, including on hover.
+    /// Neutral filled actions use the paired foreground, including throughout a hover/press.
     pub fn primary_fill(self, t: &Tokens) -> Color32 {
-        self.fill(t.accent, t.accent.lerp_to_gamma(Color32::BLACK, 0.18), t.accent.lerp_to_gamma(Color32::BLACK, 0.32))
+        let toward = if t.dark() { Color32::BLACK } else { Color32::WHITE };
+        self.fill(t.primary, t.primary.lerp_to_gamma(toward, 0.10), t.primary.lerp_to_gamma(toward, 0.20))
     }
 
     /// One pixel down at a full press.

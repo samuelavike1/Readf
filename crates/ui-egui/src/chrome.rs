@@ -442,7 +442,7 @@ fn tab(
             Rect::from_min_size(rect.min + vec2(6.0, (height - 16.0) / 2.0), vec2(16.0, 16.0)),
             icon,
             15.0,
-            if active { t.accent_text } else { t.text_muted },
+            if active { t.icon } else { t.text_muted },
         );
         ui.painter().text(rect.min + vec2(28.0, rect.height() / 2.0), Align2::LEFT_CENTER, label, font, if active { t.text } else { t.text_muted });
     });
