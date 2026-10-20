@@ -3658,20 +3658,20 @@ fn find_bar(view: &mut DocView, pages: usize, area: Rect, ui: &mut egui::Ui, t: 
                 .stroke(Stroke::new(1.0, t.border))
                 .corner_radius(CornerRadius::same(theme::RADIUS_SURFACE))
                 .shadow(egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(if t.dark() { 90 } else { 30 }) })
-                .inner_margin(egui::Margin::same(10))
+                .inner_margin(egui::Margin::same(12))
                 .show(ui, |ui| {
-                    ui.set_width((width - 22.0).max(0.0));
-                    ui.spacing_mut().item_spacing = vec2(4.0, 6.0);
+                    ui.set_width((width - 26.0).max(0.0));
+                    ui.spacing_mut().item_spacing = vec2(theme::SPACE_SM, theme::SPACE_SM);
                     ui.horizontal(|ui| {
                         let previous = find.query.clone();
-                        let input_width = (ui.available_width() - 34.0).max(0.0);
+                        let input_width = (ui.available_width() - theme::CONTROL_COMPACT - theme::SPACE_SM).max(0.0);
                         ui.visuals_mut().widgets.inactive.bg_stroke = Stroke::new(1.0, t.border);
                         let r = ui.add(
                             egui::TextEdit::singleline(&mut find.query)
                                 .id(egui::Id::new("find-input"))
                                 .hint_text(tl!("Find text"))
                                 .margin(egui::Margin { left: 30, right: 8, top: 8, bottom: 8 })
-                                .min_size(vec2(0.0, 34.0))
+                                .min_size(vec2(0.0, theme::CONTROL_HEIGHT))
                                 .desired_width(input_width),
                         );
                         r.widget_info(|| {
@@ -3689,7 +3689,7 @@ fn find_bar(view: &mut DocView, pages: usize, area: Rect, ui: &mut egui::Ui, t: 
                             step = Some(!ui.input(|i| i.modifiers.shift));
                             r.request_focus();
                         }
-                        if icons::button(ui, "x", 30.0, false, tl!("Close (Esc)")).clicked() {
+                        if icons::button(ui, "x", theme::CONTROL_COMPACT, false, tl!("Close (Esc)")).clicked() {
                             close = true;
                         }
                     });
@@ -3713,9 +3713,9 @@ fn find_bar(view: &mut DocView, pages: usize, area: Rect, ui: &mut egui::Ui, t: 
                                 ],
                             )
                         };
-                        let status_width = (ui.available_width() - 102.0).max(0.0);
+                        let status_width = (ui.available_width() - 3.0 * (theme::CONTROL_COMPACT + theme::SPACE_SM)).max(0.0);
                         ui.add_sized(
-                            vec2(status_width, 30.0),
+                            vec2(status_width, theme::CONTROL_COMPACT),
                             egui::Label::new(egui::RichText::new(&status).font(theme::regular(theme::TEXT_LABEL)).color(t.text_muted))
                                 .truncate()
                                 .halign(egui::Align::LEFT),
@@ -3723,15 +3723,16 @@ fn find_bar(view: &mut DocView, pages: usize, area: Rect, ui: &mut egui::Ui, t: 
                         .on_hover_text(&status);
                         ui.add_enabled_ui(!find.matches.is_empty(), |ui| {
                             let tip = crate::commands::key_tip(ui.ctx(), tl!("Previous ({key})"), crate::commands::FIND_PREV);
-                            if icons::button(ui, "chevron-up", 30.0, false, &tip).clicked() {
+                            if icons::button(ui, "chevron-up", theme::CONTROL_COMPACT, false, &tip).clicked() {
                                 step = Some(false);
                             }
                             let tip = crate::commands::key_tip(ui.ctx(), tl!("Next ({key})"), crate::commands::FIND_NEXT);
-                            if icons::button(ui, "chevron-down", 30.0, false, &tip).clicked() {
+                            if icons::button(ui, "chevron-down", theme::CONTROL_COMPACT, false, &tip).clicked() {
                                 step = Some(true);
                             }
                         });
-                        let opts = icons::button(ui, "settings-2", 30.0, find.case_sensitive || find.whole_words, tl!("Find options"));
+                        let opts =
+                            icons::button(ui, "settings-2", theme::CONTROL_COMPACT, find.case_sensitive || find.whole_words, tl!("Find options"));
                         egui::Popup::menu(&opts).show(|ui| {
                             let a = ui.add(widgets::checkbox(&mut find.whole_words, tl!("Whole words only"))).changed();
                             let b = ui.add(widgets::checkbox(&mut find.case_sensitive, tl!("Case-sensitive"))).changed();

@@ -23,8 +23,8 @@ const MAC_LIGHTS_LEFT: f32 = 10.0;
 pub const MAC_CONTENT_LEFT: f32 = MAC_LIGHTS_LEFT + 2.0 * MAC_LIGHT_PITCH + MAC_LIGHT + (MAC_TITLE_BAR - MAC_LIGHT) / 2.0;
 /// The strip and its controls everywhere else.
 const TAB_STRIP: f32 = 38.0;
-const TAB_HEIGHT: f32 = 30.0;
-const STRIP_BUTTON: f32 = 28.0;
+const TAB_HEIGHT: f32 = theme::CONTROL_COMPACT;
+const STRIP_BUTTON: f32 = theme::CONTROL_COMPACT;
 
 pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let t = Tokens::get(ui.ctx());
@@ -56,6 +56,7 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 .unwrap_or_else(|| window_controls::Layout { left: Vec::new(), right: Vec::new() });
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
+                ui.spacing_mut().interact_size.y = button;
                 if !controls.left.is_empty() {
                     ui.scope(|ui| {
                         ui.spacing_mut().item_spacing.x = 0.0;
@@ -474,13 +475,13 @@ pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let stacked = ui.available_width() < 700.0;
     let compact = ui.available_width() < 1050.0;
     egui::Panel::top("mode_bar")
-        .exact_size(if stacked { 86.0 } else { 48.0 })
+        .exact_size(if stacked { 94.0 } else { 52.0 })
         .frame(egui::Frame::NONE.fill(t.chrome).inner_margin(egui::Margin::symmetric(10, 0)).stroke(Stroke::new(1.0, t.divider)))
         .show(ui, |ui| {
             let id = ui.id().with(("toolbar_group_widths", compact, stacked));
             let widths = ui.data(|d| d.get_temp::<[f32; 3]>(id)).unwrap_or(if compact { [112.0, 220.0, 220.0] } else { [160.0, 220.0, 360.0] });
             let width = ui.available_width();
-            let (rect, _) = ui.allocate_exact_size(vec2(width, if stacked { 80.0 } else { 38.0 }), Sense::hover());
+            let (rect, _) = ui.allocate_exact_size(vec2(width, if stacked { 88.0 } else { 42.0 }), Sense::hover());
             let right = rect.right() - widths[2];
             let center = if stacked {
                 rect.center().x - widths[1] * 0.5
@@ -493,13 +494,14 @@ pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 (1, center, toolbar_navigation),
                 (2, right, toolbar_actions),
             ] {
-                let y = rect.top() + if stacked && index == 1 { 40.0 } else { 0.0 };
+                let y = rect.top() + if stacked && index == 1 { 44.0 } else { 0.0 };
                 let mut group = ui.new_child(
                     egui::UiBuilder::new()
                         .id_salt(index)
-                        .max_rect(Rect::from_min_size(egui::pos2(x, y), vec2(widths[index], 38.0)))
+                        .max_rect(Rect::from_min_size(egui::pos2(x, y), vec2(widths[index], 42.0)))
                         .layout(Layout::left_to_right(Align::Center)),
                 );
+                group.spacing_mut().interact_size.y = theme::CONTROL_HEIGHT;
                 draw(app, &mut group, compact);
                 measured[index] = group.min_rect().width();
             }
@@ -511,7 +513,7 @@ pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
 }
 fn toolbar_file(app: &mut PdfCraftApp, ui: &mut egui::Ui, _compact: bool) {
     let open = app.right.is_some() && (app.mode == Mode::Read || app.docking.exposed(crate::docking::Panel::Inspector));
-    if icons::button(ui, "list-tree", 32.0, open, tl!("Toggle sidebar")).clicked() {
+    if icons::button(ui, "list-tree", theme::CONTROL_HEIGHT, open, tl!("Toggle sidebar")).clicked() {
         let remembered = ui.data(|d| d.get_temp::<RightPanel>(egui::Id::new("navigation_selected"))).unwrap_or(RightPanel::Bookmarks);
         if let Some(panel) = app.right {
             ui.data_mut(|d| d.insert_temp(egui::Id::new("navigation_selected"), panel));
@@ -523,10 +525,10 @@ fn toolbar_navigation(app: &mut PdfCraftApp, ui: &mut egui::Ui, _compact: bool) 
     if let Some((index, id)) = app.active_ids() {
         let labels = app.session.get(id).map(|d| d.info.pages.iter().map(|p| p.label.clone()).collect::<Vec<_>>()).unwrap_or_default();
         if let Some(view) = app.views.get_mut(index) {
-            if icons::button(ui, "chevron-left", 30.0, false, tl!("Previous page")).clicked() {
+            if icons::button(ui, "chevron-left", theme::CONTROL_HEIGHT, false, tl!("Previous page")).clicked() {
                 view.step_page(false);
             }
-            let r = ui.add(egui::TextEdit::singleline(&mut view.page_input).id(egui::Id::new("page-input")).desired_width(34.0));
+            let r = ui.add(widgets::line(&mut view.page_input).id(egui::Id::new("page-input")).desired_width(34.0));
             if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 let typed = view.page_input.clone();
                 if !view.go_to_typed(&typed, &labels) {
@@ -534,7 +536,7 @@ fn toolbar_navigation(app: &mut PdfCraftApp, ui: &mut egui::Ui, _compact: bool) 
                 }
             }
             ui.label(format!("/ {}", labels.len()));
-            if icons::button(ui, "chevron-right", 30.0, false, tl!("Next page")).clicked() {
+            if icons::button(ui, "chevron-right", theme::CONTROL_HEIGHT, false, tl!("Next page")).clicked() {
                 view.step_page(true);
             }
             let mut command = None;
@@ -555,7 +557,7 @@ fn toolbar_navigation(app: &mut PdfCraftApp, ui: &mut egui::Ui, _compact: bool) 
 }
 fn toolbar_action(ui: &mut egui::Ui, icon: &str, label: &str, selected: bool, compact: bool) -> egui::Response {
     if compact {
-        let response = icons::button(ui, icon, 32.0, selected, label);
+        let response = icons::button(ui, icon, theme::CONTROL_HEIGHT, selected, label);
         ui.ctx().accesskit_node_builder(response.id, |node| node.set_selected(selected));
         return response;
     }
@@ -572,13 +574,13 @@ fn toolbar_action(ui: &mut egui::Ui, icon: &str, label: &str, selected: bool, co
 /// Full-width icon row used by the Tools popup so icon and text actions share one visual rhythm.
 fn tool_menu_row(ui: &mut egui::Ui, icon: &str, label: &str) -> egui::Response {
     let t = Tokens::get(ui.ctx());
-    let height = 30.0;
+    let height = theme::CONTROL_HEIGHT;
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click());
     response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
     let press = theme::Press::track(ui, &response);
     press.wash(ui, rect, theme::RADIUS_CONTROL, false);
     let body = rect.translate(press.offset());
-    icons::paint(ui, Rect::from_min_size(body.min + vec2(8.0, 6.0), vec2(18.0, 18.0)), icon, 17.0, t.icon);
+    icons::paint(ui, Rect::from_min_size(body.min + vec2(8.0, (height - 18.0) * 0.5), vec2(18.0, 18.0)), icon, 17.0, t.icon);
     ui.painter().text(body.left_center() + vec2(34.0, 0.0), Align2::LEFT_CENTER, label, theme::medium(13.0), t.text);
     widgets::focus_outline(ui, &response);
     theme::hand(response)
@@ -608,7 +610,7 @@ fn toolbar_actions(app: &mut PdfCraftApp, ui: &mut egui::Ui, compact: bool) {
         let query_id = egui::Id::new("tools-search");
         let mut query = ui.data(|data| data.get_temp::<String>(query_id)).unwrap_or_default();
         let previous = query.clone();
-        let search = ui.add(egui::TextEdit::singleline(&mut query).hint_text(tl!("Search tools")).desired_width(f32::INFINITY));
+        let search = ui.add(widgets::line(&mut query).hint_text(tl!("Search tools")).desired_width(f32::INFINITY));
         search.widget_info(|| {
             let mut info = egui::WidgetInfo::text_edit(ui.is_enabled(), &previous, &query, "");
             info.label = Some(tl!("Search tools").to_string());
@@ -675,11 +677,11 @@ fn toolbar_actions(app: &mut PdfCraftApp, ui: &mut egui::Ui, compact: bool) {
     });
     ui.add_enabled_ui(app.active.is_some(), |ui| {
         let tip = crate::commands::command_tip(ui.ctx(), tl!("Print ({key})"), "print.dialog");
-        if icons::button(ui, "printer", 32.0, false, &tip).clicked() {
+        if icons::button(ui, "printer", theme::CONTROL_HEIGHT, false, &tip).clicked() {
             app.run_command("print.dialog");
         }
         let tip = crate::commands::command_tip(ui.ctx(), tl!("Save ({key})"), "file.save");
-        if icons::button(ui, "save", 32.0, false, &tip).clicked() {
+        if icons::button(ui, "save", theme::CONTROL_HEIGHT, false, &tip).clicked() {
             app.run_command("file.save");
         }
     });
@@ -798,7 +800,7 @@ pub fn right_rail(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
 fn navigation_buttons(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     for (panel, icon, label) in [(RightPanel::Pages, "files", "Page thumbnails"), (RightPanel::Bookmarks, "bookmark", "Bookmarks")] {
         let selected = app.right == Some(panel) && (app.mode == Mode::Read || app.docking.exposed(crate::docking::Panel::Inspector));
-        if icons::button(ui, icon, 32.0, selected, tl!(label)).clicked() {
+        if icons::button(ui, icon, theme::CONTROL_HEIGHT, selected, tl!(label)).clicked() {
             app.choose_right_panel(if selected { None } else { Some(panel) });
         }
     }

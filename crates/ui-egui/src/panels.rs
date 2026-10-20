@@ -28,15 +28,18 @@ fn panel_header(ui: &mut egui::Ui, t: &Tokens, title: &str, back: bool) -> (bool
     let mut go_back = false;
     let mut close = false;
     ui.horizontal(|ui| {
-        if back && icons::button(ui, "chevron-left", 26.0, false, tl!("Back to all tools")).clicked() {
+        if back && icons::button(ui, "chevron-left", theme::CONTROL_COMPACT, false, tl!("Back to all tools")).clicked() {
             go_back = true;
         }
         // Reserve space for Close before laying out the translated title. Long tool names
         // must never expand the fixed-width sidebar or push the Close control off-screen.
-        let title_width = (ui.available_width() - 26.0 - ui.spacing().item_spacing.x).max(1.0);
-        ui.add_sized([title_width, 26.0], egui::Label::new(egui::RichText::new(tl!(title)).font(theme::semibold(15.5)).color(t.text)).truncate())
-            .on_hover_text(tl!(title));
-        if icons::button(ui, "x", 26.0, false, tl!("Close panel")).clicked() {
+        let title_width = (ui.available_width() - theme::CONTROL_COMPACT - ui.spacing().item_spacing.x).max(1.0);
+        ui.add_sized(
+            [title_width, theme::CONTROL_COMPACT],
+            egui::Label::new(egui::RichText::new(tl!(title)).font(theme::semibold(15.5)).color(t.text)).truncate(),
+        )
+        .on_hover_text(tl!(title));
+        if icons::button(ui, "x", theme::CONTROL_COMPACT, false, tl!("Close panel")).clicked() {
             close = true;
         }
     });
@@ -86,12 +89,12 @@ fn row_label(ui: &mut egui::Ui, text: &str, font: egui::FontId, color: Color32, 
 }
 
 fn tool_row(ui: &mut egui::Ui, t: &Tokens, g: &ToolGroup) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 34.0), Sense::click());
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), theme::CONTROL_HEIGHT), Sense::click());
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tl!(g.label)));
     let press = theme::Press::track(ui, &resp);
     press.wash(ui, rect, theme::RADIUS_CONTROL, false);
     let body = rect.translate(press.offset());
-    icons::paint(ui, Rect::from_min_size(body.min + vec2(6.0, 7.0), vec2(20.0, 20.0)), g.icon, 19.0, t.icon);
+    icons::paint(ui, Rect::from_center_size(body.left_center() + vec2(16.0, 0.0), vec2(20.0, 20.0)), g.icon, 19.0, t.icon);
     let right_reserved = match (g.badge, g.availability) {
         (Some(b), _) => ui.fonts_mut(|f| f.layout_no_wrap(tl!(b).to_owned(), theme::semibold(9.5), Color32::WHITE).size().x) + 26.0,
         (None, Availability::Planned(m)) if resp.hovered() => {
@@ -194,7 +197,7 @@ fn tool_detail(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens, g: &'static
                 if g.id == "fill_sign" && (item.command.starts_with("sign.fill.signature") || item.command.starts_with("sign.fill.initials")) {
                     continue;
                 }
-                let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 34.0), Sense::click());
+                let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), theme::CONTROL_HEIGHT), Sense::click());
                 resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tl!(item.label)));
                 let ready = item.availability == Availability::Ready;
                 let press = theme::Press::track(ui, &resp);
@@ -203,7 +206,7 @@ fn tool_detail(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens, g: &'static
                 let fg = if ready { t.text } else { t.text_muted };
                 icons::paint(
                     ui,
-                    Rect::from_min_size(body.min + vec2(6.0, 8.0), vec2(18.0, 18.0)),
+                    Rect::from_center_size(body.left_center() + vec2(15.0, 0.0), vec2(18.0, 18.0)),
                     item.icon,
                     17.0,
                     if ready { t.icon } else { t.text_faint },
@@ -516,7 +519,7 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         for (target, icon, label) in
                             [(RightPanel::Pages, "files", "Page thumbnails"), (RightPanel::Bookmarks, "bookmark", "Bookmarks")]
                         {
-                            if icons::button(ui, icon, 28.0, panel == target, tl!(label)).clicked() {
+                            if icons::button(ui, icon, theme::CONTROL_COMPACT, panel == target, tl!(label)).clicked() {
                                 navigation = Some(target);
                             }
                         }
@@ -532,11 +535,11 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         ui.label(egui::RichText::new(picked).font(theme::medium(12.0)).color(t.accent_text));
                     }
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if icons::button(ui, "x", 26.0, false, tl!("Close")).clicked() {
+                        if icons::button(ui, "x", theme::CONTROL_COMPACT, false, tl!("Close")).clicked() {
                             close = true;
                         }
                         if panel == RightPanel::Bookmarks && (bm_editable || !info.outline.is_empty()) {
-                            let more = icons::button(ui, "ellipsis", 26.0, false, tl!("Bookmark options"));
+                            let more = icons::button(ui, "ellipsis", theme::CONTROL_COMPACT, false, tl!("Bookmark options"));
                             egui::Popup::menu(&more).show(|ui| {
                                 ui.set_min_width(200.0);
                                 if bm_editable && ui.button(tl!("New bookmarks from structure")).clicked() {
@@ -558,7 +561,10 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                             });
                         }
                         let new_tip = crate::commands::command_tip(ui.ctx(), tl!("New bookmark ({key})"), "bookmark.add");
-                        if panel == RightPanel::Bookmarks && bm_editable && icons::button(ui, "bookmark-plus", 26.0, false, &new_tip).clicked() {
+                        if panel == RightPanel::Bookmarks
+                            && bm_editable
+                            && icons::button(ui, "bookmark-plus", theme::CONTROL_COMPACT, false, &new_tip).clicked()
+                        {
                             bm_action = Some(BmAction::New);
                         }
                     });
@@ -568,7 +574,7 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             // Keep search/filter actions clear of the title and count.
                             panel_command = crate::comments_panel::header_controls(ui, info, view, doc.comments_hidden());
-                            if icons::button(ui, "search", 26.0, view.comments.search.is_some(), tl!("Search comments")).clicked() {
+                            if icons::button(ui, "search", theme::CONTROL_COMPACT, view.comments.search.is_some(), tl!("Search comments")).clicked() {
                                 view.comments.search = match view.comments.search {
                                     Some(_) => None,
                                     None => Some(String::new()),
@@ -593,7 +599,7 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                                 .id(search_id.with("input"))
                                 .hint_text(tl!("Search"))
                                 .margin(egui::Margin { left: 30, right: 34, top: 8, bottom: 8 })
-                                .min_size(vec2(0.0, 34.0))
+                                .min_size(vec2(0.0, theme::CONTROL_HEIGHT))
                                 .desired_width(width),
                         );
                         response.widget_info(|| {
@@ -671,7 +677,7 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                             empty(ui, &t, "layers", "This document has no layers.");
                         }
                         for (li, l) in info.layers.iter().enumerate() {
-                            let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::click());
+                            let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), theme::CONTROL_HEIGHT), Sense::click());
                             resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Checkbox, true, l.visible, &l.name));
                             let press = theme::Press::track(ui, &resp);
                             press.wash(ui, rect, theme::RADIUS_CONTROL, false);
@@ -973,24 +979,24 @@ fn outline_item(ui: &mut egui::Ui, t: &Tokens, info: &DocInfo, item: &OutlineIte
         let font = if depth == 0 { theme::medium(13.0) } else { theme::regular(13.0) };
         let wrap_w = (ui.available_width() - indent - 20.0 - label_w - 12.0).max(60.0);
         let galley = ui.fonts_mut(|f| f.layout(item.title.clone(), font, t.text, wrap_w));
-        let h = (galley.size().y + 12.0).max(28.0);
+        let h = (galley.size().y + 2.0 * theme::ROW_PAD_Y).max(theme::CONTROL_HEIGHT);
         let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h), Sense::click());
         resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &item.title));
         theme::Press::track(ui, &resp).wash(ui, rect, theme::RADIUS_CONTROL, false);
         let x0 = rect.left() + indent;
         if !item.children.is_empty() {
-            let tri = Rect::from_min_size(pos2(x0, rect.top() + 6.0), vec2(16.0, 16.0));
+            let tri = Rect::from_min_size(pos2(x0, rect.top() + theme::ROW_PAD_Y), vec2(16.0, 16.0));
             icons::paint(ui, tri, if open { "chevron-down" } else { "chevron-right" }, 14.0, t.text_muted);
             if !cx.searching && ui.interact(tri, id.with("tri"), Sense::click()).clicked() {
                 open = !open;
                 ui.data_mut(|d| d.insert_temp(id, open));
             }
         }
-        ui.painter().galley(pos2(x0 + 20.0, rect.top() + 6.0), galley, t.text);
+        ui.painter().galley(pos2(x0 + 20.0, rect.top() + theme::ROW_PAD_Y), galley, t.text);
         if let Some(g) = label_galley {
             // Right-aligned, vertically centred at the first line, inside the column the title
             // wrapped around.
-            let pos = pos2(rect.right() - 6.0 - g.size().x, rect.top() + 14.0 - g.size().y / 2.0);
+            let pos = pos2(rect.right() - 6.0 - g.size().x, rect.top() + theme::ROW_PAD_Y + 8.0 - g.size().y / 2.0);
             ui.painter().galley(pos, g, t.text_faint);
         }
         if theme::hand(resp.clone()).clicked()
@@ -1299,12 +1305,18 @@ fn fields(
                 FieldKind::Signature => "signature",
                 FieldKind::Unknown => "square",
             };
-            let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
+            let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), theme::CONTROL_HEIGHT), Sense::click());
             resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, selected, &f.name));
             let press = theme::Press::track(ui, &resp);
             press.wash(ui, rect, theme::RADIUS_CONTROL, selected);
             let body = rect.translate(press.offset());
-            icons::paint(ui, Rect::from_min_size(body.min + vec2(8.0, 7.0), vec2(16.0, 16.0)), icon, 15.0, Color32::from_rgb(0x8E, 0x4E, 0xE6));
+            icons::paint(
+                ui,
+                Rect::from_center_size(body.left_center() + vec2(16.0, 0.0), vec2(16.0, 16.0)),
+                icon,
+                15.0,
+                Color32::from_rgb(0x8E, 0x4E, 0xE6),
+            );
             let value =
                 f.value.as_ref().map(|v| if v.chars().count() > 18 { format!("{}…", v.chars().take(17).collect::<String>()) } else { v.clone() });
             let value_font = theme::regular(11.5);

@@ -400,6 +400,13 @@ pub const SPACE_MD: f32 = 12.0;
 pub const SPACE_LG: f32 = 16.0;
 pub const SPACE_XL: f32 = 24.0;
 
+/// Standard fields and action buttons share a comfortable desktop hit target.
+pub const CONTROL_HEIGHT: f32 = 36.0;
+/// Secondary icon actions and menu rows use the compact size.
+pub const CONTROL_COMPACT: f32 = 32.0;
+/// Padding around multiline list labels; one-line rows use the standard height.
+pub const ROW_PAD_Y: f32 = 8.0;
+
 pub fn caption() -> FontId {
     regular(TEXT_CAPTION)
 }
@@ -472,8 +479,9 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
     }
     ctx.set_visuals(v);
     ctx.global_style_mut(|s| {
-        s.spacing.item_spacing = egui::vec2(SPACE_SM, 6.0);
-        s.spacing.button_padding = egui::vec2(10.0, 5.0);
+        s.spacing.item_spacing = egui::vec2(SPACE_SM, SPACE_SM);
+        s.spacing.interact_size.y = CONTROL_COMPACT;
+        s.spacing.button_padding = egui::vec2(10.0, 6.0);
         s.spacing.menu_margin = egui::Margin::same(6);
         s.spacing.scroll.bar_width = 8.0;
         s.spacing.scroll.floating = true;

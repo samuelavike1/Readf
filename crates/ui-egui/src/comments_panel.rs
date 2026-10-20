@@ -284,14 +284,14 @@ fn card(
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if selected && allowed {
-                        let more = icons::button(ui, "ellipsis", 22.0, false, tl!("More"));
+                        let more = icons::button(ui, "ellipsis", 28.0, false, tl!("More"));
                         open_menu = more.clicked();
                         more_rect = Some(more.rect);
                     }
                     // Acrobat's per-comment checkmark: a toggle on the selected card, a mark otherwise.
                     let tip = if marked { tl!("Remove checkmark") } else { tl!("Mark with checkmark") };
                     if selected && allowed {
-                        if icons::button(ui, "circle-check", 22.0, marked, tip).clicked() {
+                        if icons::button(ui, "circle-check", 28.0, marked, tip).clicked() {
                             edit = Some(Edit::MarkAnnotation { page: a.page, index: a.index, marked: !marked, author: prefs.author.clone() });
                         }
                     } else if marked {
@@ -347,7 +347,7 @@ fn card(
                 let resp = ui.horizontal(|ui| {
                     avatar(ui, t, None, Some(&initials(r.author.as_deref().unwrap_or("?"))), t.text_faint);
                     ui.vertical(|ui| {
-                        ui.spacing_mut().item_spacing.y = 2.0;
+                        ui.spacing_mut().item_spacing.y = theme::SPACE_XS;
                         ui.horizontal(|ui| {
                             let author = r.author.as_deref().map_or_else(|| tl!("Reply").into(), crate::bidi::visual_auto);
                             ui.label(egui::RichText::new(author).font(theme::semibold(12.0)));
@@ -507,7 +507,7 @@ pub(crate) fn header_controls(ui: &mut egui::Ui, info: &DocInfo, view: &mut DocV
         && cv.hidden_statuses.is_empty()
         && cv.hidden_colors.is_empty()
         && cv.hidden_checks.is_empty());
-    let more = icons::button(ui, "ellipsis", 26.0, false, tl!("More options"));
+    let more = icons::button(ui, "ellipsis", theme::CONTROL_COMPACT, false, tl!("More options"));
     egui::Popup::menu(&more).show(|ui| {
         ui.set_min_width(220.0);
         ui.label(egui::RichText::new(tl!("Sort by")).small());
@@ -536,7 +536,7 @@ pub(crate) fn header_controls(ui: &mut egui::Ui, info: &DocInfo, view: &mut DocV
             }
         }
     });
-    let filter = icons::button(ui, "filter", 26.0, active, tl!("Filter comments"));
+    let filter = icons::button(ui, "filter", theme::CONTROL_COMPACT, active, tl!("Filter comments"));
     egui::Popup::menu(&filter).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
         ui.set_min_width(200.0);
         let toggle = |ui: &mut egui::Ui, list: &mut Vec<String>, value: &str, label: &str| {

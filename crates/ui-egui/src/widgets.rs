@@ -6,9 +6,9 @@ use crate::theme::{self, Tokens};
 use crate::{PdfCraftApp, icons};
 
 /// Horizontal and vertical inset of a single-line field.
-const FIELD_MARGIN: egui::Margin = egui::Margin::symmetric(10, 6);
+const FIELD_MARGIN: egui::Margin = egui::Margin::symmetric(10, 8);
 /// Outer height of a single-line field, including its inset.
-const FIELD_MIN_HEIGHT: f32 = 34.0;
+const FIELD_MIN_HEIGHT: f32 = theme::CONTROL_HEIGHT;
 /// Padding inside every modal.
 const DIALOG_PAD_X: i8 = 20;
 const DIALOG_PAD_Y: i8 = 20;
@@ -49,7 +49,7 @@ pub fn show_modal<R>(ctx: &egui::Context, id: &str, content: impl FnOnce(&mut eg
     })
 }
 
-/// Outlined controls at a shared 34-point height, with a focus stroke and shared control corners.
+/// Outlined controls at a shared standard height, with a focus stroke and shared control corners.
 ///
 /// Dialog fills match the theme's field colour, so radio buttons, check boxes, combo boxes
 /// and number fields need the border or they disappear into the card.
@@ -72,7 +72,7 @@ pub fn begin_dialog(ui: &mut egui::Ui) {
 /// Shared title rhythm for dialog bodies, leaving their actions in the content flow.
 pub fn dialog_title(ui: &mut egui::Ui, title: &str) {
     ui.label(egui::RichText::new(title).font(theme::title()));
-    ui.add_space(theme::SPACE_SM);
+    ui.add_space(theme::SPACE_MD);
 }
 
 /// Left-aligned label column with the same vertical centre as its form control.
@@ -90,7 +90,7 @@ pub fn line(text: &mut dyn egui::TextBuffer) -> egui::TextEdit<'_> {
 
 /// A multiline field with the same horizontal inset as [`line`].
 pub fn block(text: &mut dyn egui::TextBuffer) -> egui::TextEdit<'_> {
-    egui::TextEdit::multiline(text).margin(egui::Margin::symmetric(10, 6))
+    egui::TextEdit::multiline(text).margin(egui::Margin::symmetric(10, 8))
 }
 
 /// One line that stays within `max_width`, cut on a character boundary with an ellipsis.
@@ -157,7 +157,7 @@ pub fn pill_button(ui: &mut egui::Ui, label: &str, primary: bool) -> Response {
     let t = Tokens::get(ui.ctx());
     let font = theme::medium(theme::TEXT_BODY);
     let w = ui.fonts_mut(|f| f.layout_no_wrap(label.to_owned(), font.clone(), t.text).size().x);
-    let (rect, resp) = ui.allocate_exact_size(vec2((w + 28.0).max(64.0), 34.0), Sense::click());
+    let (rect, resp) = ui.allocate_exact_size(vec2((w + 28.0).max(64.0), theme::CONTROL_HEIGHT), Sense::click());
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
     let press = theme::Press::track(ui, &resp);
     let (fill, stroke, text) = if primary {
@@ -185,7 +185,7 @@ pub fn focus_outline(ui: &egui::Ui, response: &Response) {
 
 /// Icon + label, transparent until hovered.
 pub fn ghost_button(ui: &mut egui::Ui, icon: &str, label: &str) -> Response {
-    ghost_button_sized(ui, icon, label, 30.0)
+    ghost_button_sized(ui, icon, label, theme::CONTROL_HEIGHT)
 }
 
 /// [`ghost_button`] at a given height (the macOS title bar is shorter than the tab strip elsewhere).
@@ -207,7 +207,7 @@ pub fn ghost_button_sized(ui: &mut egui::Ui, icon: &str, label: &str, height: f3
 /// A search-field lookalike that opens the command palette.
 pub fn search_box(ui: &mut egui::Ui, placeholder: &str, width: f32) -> Response {
     let t = Tokens::get(ui.ctx());
-    let (rect, resp) = ui.allocate_exact_size(vec2(width, 32.0), Sense::click());
+    let (rect, resp) = ui.allocate_exact_size(vec2(width, theme::CONTROL_COMPACT), Sense::click());
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), placeholder));
     let press = theme::Press::track(ui, &resp);
     let fill = press.fill(t.field, t.hover, t.pressed);
@@ -237,7 +237,7 @@ pub fn menu_item_enabled(ui: &mut egui::Ui, enabled: bool, label: &str, shortcut
     // A popup starts with a generous unconstrained width; do not turn that into
     // a permanent minimum just because its rows should share a hit target.
     let width = ui.available_width().min(320.0);
-    let mut button = egui::Button::new(label).min_size(vec2(width, 32.0));
+    let mut button = egui::Button::new(label).min_size(vec2(width, theme::CONTROL_COMPACT));
     if !shortcut.is_empty() {
         button = button.shortcut_text(shortcut);
     }
@@ -556,8 +556,8 @@ pub fn split_pill(ui: &mut egui::Ui, icon: &str, label: &str, more: &str) -> (Re
     let t = Tokens::get(ui.ctx());
     let font = theme::medium(theme::TEXT_LABEL);
     let w = ui.fonts_mut(|f| f.layout_no_wrap(label.to_owned(), font.clone(), t.text).size().x);
-    let (rect, _) = ui.allocate_exact_size(vec2(w + 46.0 + 28.0, 30.0), Sense::hover());
-    let (main_rect, more_rect) = rect.split_left_right_at_x(rect.right() - 28.0);
+    let (rect, _) = ui.allocate_exact_size(vec2(w + 46.0 + theme::CONTROL_COMPACT, theme::CONTROL_HEIGHT), Sense::hover());
+    let (main_rect, more_rect) = rect.split_left_right_at_x(rect.right() - theme::CONTROL_COMPACT);
     let main = ui.interact(main_rect, ui.id().with(("split-pill", label)), Sense::click());
     let arrow = ui.interact(more_rect, ui.id().with(("split-pill-more", label)), Sense::click());
     main.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
@@ -577,7 +577,7 @@ pub fn split_pill(ui: &mut egui::Ui, icon: &str, label: &str, more: &str) -> (Re
     let body = rect.translate(main_press.offset());
     let more_body = more_rect.translate(arrow_press.offset());
     ui.painter().vline(more_rect.left(), rect.y_range().shrink(7.0), Stroke::new(1.0, t.text_muted));
-    crate::icons::paint(ui, Rect::from_min_size(body.min + vec2(12.0, 7.0), vec2(16.0, 16.0)), icon, 15.0, t.text);
+    crate::icons::paint(ui, Rect::from_center_size(body.left_center() + vec2(20.0, 0.0), vec2(16.0, 16.0)), icon, 15.0, t.text);
     ui.painter().text(body.left_center() + vec2(34.0, 0.0), Align2::LEFT_CENTER, label, font, t.text);
     crate::icons::paint(ui, Rect::from_center_size(more_body.center(), vec2(14.0, 14.0)), "chevron-down", 13.0, t.text);
     focus_outline(ui, &main);
@@ -590,7 +590,7 @@ pub fn icon_pill(ui: &mut egui::Ui, icon: &str, label: &str, primary: bool) -> R
     let t = Tokens::get(ui.ctx());
     let font = theme::medium(theme::TEXT_LABEL);
     let w = ui.fonts_mut(|f| f.layout_no_wrap(label.to_owned(), font.clone(), t.text).size().x);
-    let (rect, resp) = ui.allocate_exact_size(vec2(w + 46.0, 30.0), Sense::click());
+    let (rect, resp) = ui.allocate_exact_size(vec2(w + 46.0, theme::CONTROL_HEIGHT), Sense::click());
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
     let press = theme::Press::track(ui, &resp);
     let (fill, stroke, text) = if primary {
@@ -600,7 +600,7 @@ pub fn icon_pill(ui: &mut egui::Ui, icon: &str, label: &str, primary: bool) -> R
     };
     ui.painter().rect(rect, CornerRadius::same(theme::RADIUS_CONTROL), fill, stroke, egui::StrokeKind::Inside);
     let body = rect.translate(press.offset());
-    crate::icons::paint(ui, Rect::from_min_size(body.min + vec2(12.0, 7.0), vec2(16.0, 16.0)), icon, 15.0, text);
+    crate::icons::paint(ui, Rect::from_center_size(body.left_center() + vec2(20.0, 0.0), vec2(16.0, 16.0)), icon, 15.0, text);
     ui.painter().text(body.left_center() + vec2(34.0, 0.0), Align2::LEFT_CENTER, label, font, text);
     focus_outline(ui, &resp);
     theme::hand(resp)

@@ -656,7 +656,9 @@ pub(crate) fn body(
 ) -> (bool, bool) {
     crate::widgets::dialog_title(ui, tl!("Print"));
     ui.spacing_mut().scroll.floating = false;
-    let max_height = (ui.ctx().content_rect().height() - 128.0).max(180.0);
+    // Reserve the title, card padding and viewport margin while keeping standard
+    // controls and the in-flow print actions visible at ordinary window heights.
+    let max_height = (ui.ctx().content_rect().height() - 104.0).max(180.0);
     egui::ScrollArea::vertical()
         .id_salt("print-content")
         .min_scrolled_height(max_height)
