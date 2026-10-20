@@ -2739,6 +2739,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
             };
             let on_link = tool == QuickTool::Link && can_modify && crate::link_ui::page_input(ui, &resp, &xf, i, info, &doc_links, view);
             if tool == QuickTool::Select
+                && crate::commands::command_visible("edit.link")
                 && resp.secondary_clicked()
                 && can_modify
                 && let Some(p) = pointer.filter(|p| xf.rect.contains(*p))
@@ -3813,7 +3814,7 @@ fn notices(
     if let Some((icon, color, template, arg)) = signed {
         let mut open = false;
         notice_bar(ui, t, icon, color, crate::i18n::fmt(tl!(template), &[("by", &arg)]), |ui| {
-            if crate::widgets::pill_button(ui, tl!("Signature panel"), false).clicked() {
+            if crate::commands::command_visible("sign.panel") && crate::widgets::pill_button(ui, tl!("Signature panel"), false).clicked() {
                 open = true;
             }
         });
@@ -3887,10 +3888,17 @@ fn notices(
         if scripts_off && crate::widgets::pill_button(ui, tl!("JavaScript Console"), false).clicked() {
             open_console = true;
         }
-        if secured && crate::widgets::pill_button(ui, tl!("Security settings"), false).clicked() {
+        if secured
+            && crate::commands::command_visible("protect.properties")
+            && crate::widgets::pill_button(ui, tl!("Security settings"), false).clicked()
+        {
             open_security = true;
         }
-        if secured && doc.can_unlock() && crate::widgets::pill_button(ui, tl!("Unlock…"), true).clicked() {
+        if secured
+            && crate::commands::command_visible("protect.unlock")
+            && doc.can_unlock()
+            && crate::widgets::pill_button(ui, tl!("Unlock…"), true).clicked()
+        {
             unlock = true;
         }
         if repaired && !secured && info.fields.is_empty() && crate::widgets::pill_button(ui, tl!("Details"), false).clicked() {

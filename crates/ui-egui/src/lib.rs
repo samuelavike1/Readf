@@ -2035,6 +2035,7 @@ impl PdfCraftApp {
 
     /// Select the workspace and its matching tool panel, just like the mode bar.
     pub(crate) fn select_mode(&mut self, mode: Mode) {
+        let mode = if mode == Mode::Convert { Mode::Read } else { mode };
         self.mode = mode;
         self.reveal_tools();
         if let Some(view) = self.active.and_then(|i| self.views.get_mut(i)) {
@@ -2177,7 +2178,11 @@ impl PdfCraftApp {
             self.docking = workspace;
             self.left_open =
                 v.get("docking_left_open").and_then(serde_json::Value::as_bool).unwrap_or(self.docking.layout.contains(&docking::Panel::Tools));
-            self.right = v.get("docking_right").and_then(|value| serde_json::from_value(value.clone()).ok()).flatten();
+            self.right = v
+                .get("docking_right")
+                .and_then(|value| serde_json::from_value(value.clone()).ok())
+                .flatten()
+                .filter(|panel| crate::commands::panel_visible(*panel));
         }
         self.combine_columns = combine_ui::Columns::from_json(&v["combine_columns"]);
         if let Some(view) = v["combine_view"].as_str().and_then(combine_ui::CombineView::parse) {
@@ -2214,7 +2219,8 @@ impl PdfCraftApp {
         }
         if let Ok(mode) = serde_json::from_value::<Mode>(v["default_mode"].clone()) {
             // Migrate the old default once; subsequent explicit workspace choices persist.
-            self.default_mode = if v.get("readf_ui_version").is_none() && mode == Mode::AllTools { Mode::Read } else { mode };
+            self.default_mode =
+                if mode == Mode::Convert || (v.get("readf_ui_version").is_none() && mode == Mode::AllTools) { Mode::Read } else { mode };
         }
         if let Some((layout, continuous)) = v["default_layout"].as_str().and_then(canvas::parse_display_token) {
             (self.view_defaults.layout, self.view_defaults.continuous) = (layout, continuous);

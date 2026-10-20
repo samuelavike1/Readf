@@ -139,9 +139,9 @@ impl HeldToolOpen {
     }
 }
 
-fn choose_export_tool(harness: &mut Harness<'static, PdfCraftApp>, file: &ToolOpenFile) {
+fn choose_header_footer_tool(harness: &mut Harness<'static, PdfCraftApp>, file: &ToolOpenFile) {
     harness.state_mut().pick_override = Some(vec![file.0.to_string_lossy().into_owned()]);
-    harness.state_mut().run_command("export.text");
+    harness.state_mut().run_command("edit.header_footer");
     harness.run_steps(2);
 }
 
@@ -152,7 +152,7 @@ fn chosen_tool_runs_after_preparation(extension: &str, bytes: Vec<u8>) {
     let mut harness = tool_open_harness();
     let held = HeldToolOpen::install(&mut harness);
     let file = tool_open_file("pending", extension, &bytes);
-    choose_export_tool(&mut harness, &file);
+    choose_header_footer_tool(&mut harness, &file);
     held.wait_started();
     assert!(harness.state().views.is_empty());
     assert!(harness.state().dialog.is_none(), "the tool cannot run before its document exists");
@@ -178,7 +178,10 @@ fn chosen_tool_runs_after_preparation(extension: &str, bytes: Vec<u8>) {
         let text = output.text.expect("read the converted text").plain_text();
         assert_eq!(text.split_whitespace().collect::<Vec<_>>().join(" "), std::str::from_utf8(&bytes).expect("synthetic input is UTF-8"));
     }
-    assert!(matches!(app.dialog, Some(crate::Dialog::Export(_))), "the chosen Export tool runs after its source commits");
+    assert!(
+        matches!(app.dialog, Some(crate::Dialog::Marks(pdfcraft_engine::MarkKind::HeaderFooter))),
+        "the chosen Header/Footer tool runs after its source commits"
+    );
     assert!(app.pending_opens.is_empty());
 }
 
@@ -208,7 +211,7 @@ fn a_chosen_tool_survives_wrong_password_retry_and_runs_after_unlock() {
     let mut harness = tool_open_harness();
     let held = HeldToolOpen::install(&mut harness);
     let file = tool_open_file("encrypted-retry", "pdf", &encrypted_tool_fixture());
-    choose_export_tool(&mut harness, &file);
+    choose_header_footer_tool(&mut harness, &file);
     held.wait_started();
     held.complete(&mut harness);
     assert!(harness.state().password_prompt.is_some());
@@ -232,7 +235,10 @@ fn a_chosen_tool_survives_wrong_password_retry_and_runs_after_unlock() {
     assert_eq!(app.views.len(), 1);
     let source = app.active_ids().expect("the unlocked document is active").1;
     assert_eq!(app.session.get(source).expect("the unlocked document exists").path.as_deref(), Some(file.0.to_string_lossy().as_ref()));
-    assert!(matches!(app.dialog, Some(crate::Dialog::Export(_))), "the chosen tool survives the wrong-password retry");
+    assert!(
+        matches!(app.dialog, Some(crate::Dialog::Marks(pdfcraft_engine::MarkKind::HeaderFooter))),
+        "the chosen tool survives the wrong-password retry"
+    );
 }
 
 #[test]
@@ -240,14 +246,14 @@ fn a_chosen_tool_survives_wrong_password_retry_and_runs_after_unlock() {
 fn cancelling_a_chosen_tools_picker_or_password_never_runs_it_on_another_document() {
     let mut harness = tool_open_harness();
     harness.state_mut().pick_override = Some(Vec::new());
-    harness.state_mut().run_command("export.text");
+    harness.state_mut().run_command("edit.header_footer");
     harness.run_steps(2);
     assert!(harness.state().pending_opens.is_empty());
     assert!(harness.state().views.is_empty() && harness.state().dialog.is_none());
 
     let held = HeldToolOpen::install(&mut harness);
     let file = tool_open_file("encrypted-cancel", "pdf", &encrypted_tool_fixture());
-    choose_export_tool(&mut harness, &file);
+    choose_header_footer_tool(&mut harness, &file);
     held.wait_started();
     held.complete(&mut harness);
     assert!(harness.state().password_prompt.is_some());
@@ -266,7 +272,7 @@ fn a_chosen_tool_does_not_run_when_native_preparation_rejects_the_file() {
     let mut harness = tool_open_harness();
     let held = HeldToolOpen::install(&mut harness);
     let file = tool_open_file("invalid", "pdf", b"%PDF-1.7\nnot a PDF object graph");
-    choose_export_tool(&mut harness, &file);
+    choose_header_footer_tool(&mut harness, &file);
     held.wait_started();
     held.complete(&mut harness);
     assert!(harness.state().views.is_empty() && harness.state().pending_opens.is_empty());
@@ -358,7 +364,7 @@ fn assert_tool_runs_after_background_open(extension: &str, bytes: Vec<u8>, pages
     let path = std::env::temp_dir().join(format!("pdfcraft-tool-worker-{}.{extension}", std::process::id()));
     std::fs::write(&path, &bytes).expect("write picked document");
     harness.state_mut().pick_override = Some(vec![path.to_string_lossy().into_owned()]);
-    harness.state_mut().run_command("export.text");
+    harness.state_mut().run_command("edit.header_footer");
     harness.step();
     started.recv_timeout(Duration::from_secs(5)).expect("the picked document reached preparation");
     assert!(harness.state().active.is_none());
@@ -369,7 +375,11 @@ fn assert_tool_runs_after_background_open(extension: &str, bytes: Vec<u8>, pages
     let app = harness.state();
     assert_eq!(app.views.len(), 1, "the chosen document opens once");
     assert_eq!(app.session.get(app.views[0].id).expect("chosen document").info.pages.len(), pages);
-    assert!(matches!(app.dialog, Some(crate::Dialog::Export(_))), "the chosen tool runs after preparation: {:?}", app.dialog);
+    assert!(
+        matches!(app.dialog, Some(crate::Dialog::Marks(pdfcraft_engine::MarkKind::HeaderFooter))),
+        "the chosen tool runs after preparation: {:?}",
+        app.dialog
+    );
     harness.run_steps(2);
     assert_eq!(harness.state().views.len(), 1);
     assert_eq!(std::fs::read(&path).expect("read unchanged input"), bytes);

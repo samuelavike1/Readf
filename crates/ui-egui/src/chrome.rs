@@ -644,7 +644,7 @@ fn toolbar_actions(app: &mut PdfCraftApp, ui: &mut egui::Ui, compact: bool) {
                 ui.separator();
             }
             let mut matches = 0;
-            for group in pdfcraft_engine::catalog::TOOL_GROUPS {
+            for group in pdfcraft_engine::catalog::TOOL_GROUPS.iter().filter(|g| crate::commands::tool_visible(g.id)) {
                 let matches_query = |text: &str| pdfcraft_render::text::fold_case(text).contains(&query);
                 if !query.is_empty()
                     && !matches_query(tl!(group.label))
@@ -653,6 +653,7 @@ fn toolbar_actions(app: &mut PdfCraftApp, ui: &mut egui::Ui, compact: bool) {
                         .sections
                         .iter()
                         .flat_map(|section| section.items)
+                        .filter(|item| crate::commands::command_visible(item.command))
                         .any(|item| matches_query(tl!(item.label)) || matches_query(item.label))
                 {
                     continue;
@@ -763,6 +764,9 @@ fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui, button_size: f32) {
                     (RightPanel::Search, tl!("Search")),
                     (RightPanel::Compare, tl!("Compare")),
                 ] {
+                    if !crate::commands::panel_visible(p) {
+                        continue;
+                    }
                     if ui.add(widgets::radio(app.right == Some(p), tl!(label))).clicked() {
                         app.choose_right_panel(Some(p));
                     }

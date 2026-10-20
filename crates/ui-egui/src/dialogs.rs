@@ -97,7 +97,6 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     for (tb, label) in [
                         (PropsTab::Description, tl!("Description")),
                         (PropsTab::InitialView, tl!("Initial View")),
-                        (PropsTab::Security, tl!("Security")),
                         (PropsTab::Fonts, tl!("Fonts")),
                         (PropsTab::Advanced, tl!("Advanced")),
                     ] {

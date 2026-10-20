@@ -13,10 +13,60 @@ use crate::{
     widgets,
 };
 
-/// Local interface exclusions; engine and headless automation remain available.
-pub(crate) fn command_visible(id: &str) -> bool {
+/// Earlier fork exclusions also disable dispatch in the frontend.
+fn command_available(id: &str) -> bool {
     !matches!(id, "help.app_page" | "help.github" | "help.website")
         && !["create.", "page.", "measure.", "ai."].iter().any(|prefix| id.starts_with(prefix))
+}
+
+/// User-facing entries and shortcuts. Direct command/control dispatch stays available for
+/// headless workflows and upstream regression coverage; it does not add a GUI entry point.
+pub(crate) fn command_visible(id: &str) -> bool {
+    command_available(id)
+        && !matches!(
+            id,
+            "comment.stamp"
+                | "edit.link"
+                | "edit.links_from_urls"
+                | "edit.remove_links"
+                | "doc.compare"
+                | "edit.attach"
+                | "ocr.enhance"
+                | "ocr.correct"
+                | "a11y.reading_order"
+                | "standards.pdfx"
+                | "standards.pdfua"
+                | "actions.make_accessible"
+                | "actions.archive"
+                | "actions.distribution"
+        )
+        && !["form.", "protect.", "redact.", "export.", "js."].iter().any(|prefix| id.starts_with(prefix))
+        && (!id.starts_with("sign.") || id.starts_with("sign.fill."))
+}
+
+/// Keep fork-specific feature selection out of the upstream engine catalogue.
+pub(crate) fn tool_visible(id: &str) -> bool {
+    !matches!(id, "stamp" | "form" | "certificate" | "protect" | "redact" | "export" | "compare" | "javascript")
+}
+
+/// A retained tool should not advertise removed, unfinished items.
+pub(crate) fn tool_availability(group: &pdfcraft_engine::catalog::ToolGroup) -> pdfcraft_engine::catalog::Availability {
+    use pdfcraft_engine::catalog::Availability;
+    if group
+        .sections
+        .iter()
+        .flat_map(|section| section.items)
+        .filter(|item| command_visible(item.command))
+        .all(|item| item.availability == Availability::Ready)
+    {
+        Availability::Ready
+    } else {
+        group.availability
+    }
+}
+
+pub(crate) fn panel_visible(panel: crate::RightPanel) -> bool {
+    !matches!(panel, crate::RightPanel::Fields | crate::RightPanel::Signatures | crate::RightPanel::Compare)
 }
 
 /// Commands listed in menus and the palette. Find remains available to its shortcut and
@@ -92,7 +142,7 @@ impl PdfCraftApp {
     /// Whether a registered command can run now. The engine judges the document (security,
     /// contents, undo history); view state it can't see is checked here.
     pub(crate) fn command_enabled(&self, spec: &CommandSpec) -> bool {
-        if !command_visible(spec.id) {
+        if !command_available(spec.id) {
             return false;
         }
         // Undo and Redo act on the Combine files list while its tab shows.

@@ -192,11 +192,17 @@ fn a_tool_chosen_with_no_document_asks_for_one_and_runs_on_it() {
         app
     });
     h.run_steps(2);
-    h.state_mut().run_command("export.text");
+    h.state_mut().run_command("edit.header_footer");
     assert!(h.state().toast.as_ref().is_none_or(|t| t.0 != "Open a document first"));
-    support::wait_until(&mut h, "picked document and chosen tool", |app| app.active.is_some() && matches!(app.dialog, Some(Dialog::Export(_))));
+    support::wait_until(&mut h, "picked document and chosen tool", |app| {
+        app.active.is_some() && matches!(app.dialog, Some(Dialog::Marks(pdfcraft_engine::MarkKind::HeaderFooter)))
+    });
     assert!(h.state().active.is_some(), "the picked file is open");
-    assert!(matches!(h.state().dialog, Some(Dialog::Export(_))), "and the tool runs on it: {:?}", h.state().dialog);
+    assert!(
+        matches!(h.state().dialog, Some(Dialog::Marks(pdfcraft_engine::MarkKind::HeaderFooter))),
+        "and the tool runs on it: {:?}",
+        h.state().dialog
+    );
     let (_, id) = h.state().active_ids().unwrap();
     let doc = h.state().session.get(id).unwrap();
     assert_eq!(doc.name, "picked.pdf");
@@ -209,7 +215,7 @@ fn a_tool_chosen_with_no_document_asks_for_one_and_runs_on_it() {
         app
     });
     h.run_steps(2);
-    h.state_mut().run_command("export.text");
+    h.state_mut().run_command("edit.header_footer");
     h.run_steps(3);
     assert!(h.state().active.is_none() && h.state().dialog.is_none());
     let _ = std::fs::remove_dir_all(&dir);

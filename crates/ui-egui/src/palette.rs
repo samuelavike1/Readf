@@ -72,7 +72,7 @@ pub fn show(app: &mut PdfCraftApp, ctx: &egui::Context) {
             ));
         }
     }
-    for g in TOOL_GROUPS {
+    for g in TOOL_GROUPS.iter().filter(|g| crate::commands::tool_visible(g.id)) {
         if let Some(s) = score(tl!(g.label), &q).or_else(|| score(g.label, &q)) {
             hits.push((
                 s,
@@ -82,12 +82,12 @@ pub fn show(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     detail: tl!("Tool").into(),
                     icon: g.icon,
                     command: None,
-                    ready: g.availability == Availability::Ready,
+                    ready: crate::commands::tool_availability(g) == Availability::Ready,
                 },
             ));
         }
         for sec in g.sections {
-            for i in sec.items {
+            for i in sec.items.iter().filter(|i| crate::commands::command_visible(i.command)) {
                 if pdfcraft_engine::commands::command(i.command).is_some() {
                     continue; // listed above as a command
                 }

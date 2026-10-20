@@ -340,13 +340,9 @@ pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
     ui.label(egui::RichText::new(tl!("Documents and view")).font(theme::semibold(13.0)));
     ui.horizontal_wrapped(|ui| {
         preference_label(ui, tl!("Default workspace mode"));
-        for (mode, label) in [
-            (crate::Mode::AllTools, "All tools"),
-            (crate::Mode::Read, "Read"),
-            (crate::Mode::Edit, "Edit"),
-            (crate::Mode::Convert, "Convert"),
-            (crate::Mode::Sign, "E-Sign"),
-        ] {
+        for (mode, label) in
+            [(crate::Mode::AllTools, "All tools"), (crate::Mode::Read, "Read"), (crate::Mode::Edit, "Edit"), (crate::Mode::Sign, "E-Sign")]
+        {
             widgets::radio_value(ui, &mut app.default_mode, mode, tl!(label));
         }
     });

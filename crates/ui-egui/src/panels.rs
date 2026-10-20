@@ -55,11 +55,15 @@ fn all_tools(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
         app.left_open = false;
     }
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        let shown = if app.all_tools_expanded { TOOL_GROUPS.len() } else { COLLAPSED_TOOLS.min(TOOL_GROUPS.len()) };
-        for g in &TOOL_GROUPS[..shown] {
+        let groups: Vec<_> = TOOL_GROUPS.iter().filter(|g| crate::commands::tool_visible(g.id)).collect();
+        let shown = if app.all_tools_expanded { groups.len() } else { COLLAPSED_TOOLS };
+        for g in groups.iter().take(shown) {
             if tool_row(ui, t, g).clicked() {
                 app.select_tool(g.id);
             }
+        }
+        if groups.len() <= COLLAPSED_TOOLS {
+            return;
         }
         ui.add_space(4.0);
         let more = if app.all_tools_expanded { "View less" } else { "View more" };
@@ -89,13 +93,14 @@ fn row_label(ui: &mut egui::Ui, text: &str, font: egui::FontId, color: Color32, 
 }
 
 fn tool_row(ui: &mut egui::Ui, t: &Tokens, g: &ToolGroup) -> egui::Response {
+    let availability = crate::commands::tool_availability(g);
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), theme::CONTROL_HEIGHT), Sense::click());
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tl!(g.label)));
     let press = theme::Press::track(ui, &resp);
     press.wash(ui, rect, theme::RADIUS_CONTROL, false);
     let body = rect.translate(press.offset());
     icons::paint(ui, Rect::from_center_size(body.left_center() + vec2(16.0, 0.0), vec2(20.0, 20.0)), g.icon, 19.0, t.icon);
-    let right_reserved = match (g.badge, g.availability) {
+    let right_reserved = match (g.badge, availability) {
         (Some(b), _) => ui.fonts_mut(|f| f.layout_no_wrap(tl!(b).to_owned(), theme::semibold(9.5), Color32::WHITE).size().x) + 26.0,
         (None, Availability::Planned(m)) if resp.hovered() => {
             let hint = format!("{} · {m}", tl!("Planned"));
@@ -105,7 +110,7 @@ fn tool_row(ui: &mut egui::Ui, t: &Tokens, g: &ToolGroup) -> egui::Response {
     };
     let clipped =
         row_label(ui, tl!(g.label), theme::regular(13.5), t.text, body.left_center() + vec2(36.0, 0.0), rect.width() - 36.0 - right_reserved);
-    match (g.badge, g.availability) {
+    match (g.badge, availability) {
         (Some(b), _) => {
             let font = theme::semibold(9.5);
             let badge = tl!(b);
@@ -126,7 +131,7 @@ fn tool_row(ui: &mut egui::Ui, t: &Tokens, g: &ToolGroup) -> egui::Response {
         }
         _ => {}
     }
-    let tip = match g.availability {
+    let tip = match availability {
         Availability::Ready => tl!("Available").to_string(),
         Availability::Planned(m) => format!("{} {m} — {}", tl!("Planned for milestone"), tl!("open to see what it will include")),
         Availability::Provider => tl!("Optional: needs an AI provider you configure").into(),
@@ -144,7 +149,7 @@ fn tool_detail(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens, g: &'static
     if close {
         app.left_open = false;
     }
-    if matches!(g.availability, Availability::Planned(_)) {
+    if matches!(crate::commands::tool_availability(g), Availability::Planned(_)) {
         ui.label(egui::RichText::new(tl!("Some tools are not available yet.")).color(t.text_muted).font(theme::regular(12.0)));
         ui.add_space(6.0);
     }
@@ -192,8 +197,11 @@ fn tool_detail(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens, g: &'static
     let list_h = if footer { (ui.available_height() - 52.0).max(80.0) } else { ui.available_height() };
     egui::ScrollArea::vertical().auto_shrink([false, false]).max_height(list_h).show(ui, |ui| {
         for s in g.sections {
+            if !s.items.iter().any(|item| crate::commands::command_visible(item.command)) {
+                continue;
+            }
             widgets::section_title(ui, tl!(s.title));
-            for item in s.items {
+            for item in s.items.iter().filter(|item| crate::commands::command_visible(item.command)) {
                 if g.id == "fill_sign" && (item.command.starts_with("sign.fill.signature") || item.command.starts_with("sign.fill.initials")) {
                     continue;
                 }

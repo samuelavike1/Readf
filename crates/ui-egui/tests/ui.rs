@@ -121,12 +121,13 @@ fn home_removes_one_recent_file_or_clears_them_all() {
 }
 
 #[test]
-fn every_catalog_tool_is_listed_after_view_more() {
+fn tools_popup_lists_only_the_selected_readf_tool_groups() {
     let mut h = harness(|app| app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).unwrap());
     h.get_by_role_and_label(egui::accesskit::Role::Button, "Tools").click();
     h.run_steps(3);
     for g in pdfcraft_engine::catalog::TOOL_GROUPS {
-        assert!(h.query_all_by_label(g.label).count() >= 1, "tool {} missing from All tools", g.label);
+        let removed = ["export", "form", "certificate", "protect", "redact", "stamp", "compare", "javascript"].contains(&g.id);
+        assert_eq!(h.query_all_by_label(g.label).count() > 0, !removed, "tool {} visibility", g.label);
     }
 }
 
@@ -805,9 +806,10 @@ fn default_workspace_mode_persists_and_tolerates_invalid_settings() {
         let mut restored = PdfCraftApp::new();
         restored.set_option("language", "en").unwrap();
         restored.restore(&app.persist());
-        assert_eq!(restored.default_mode, mode);
+        let expected = if mode == Mode::Convert { Mode::Read } else { mode };
+        assert_eq!(restored.default_mode, expected);
         restored.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).unwrap();
-        assert_eq!(restored.mode, mode, "session override must not be persisted");
+        assert_eq!(restored.mode, expected, "session override must not be persisted");
     }
     for json in
         ["{}", "{not json", r#"{"default_mode": null}"#, r#"{"default_mode": 5}"#, r#"{"default_mode": "unknown"}"#, r#"{"default_mode": "all"}"#]
@@ -1117,11 +1119,10 @@ fn long_german_tool_labels_stay_within_the_sidebar() {
     let heading =
         painted_text(&h).into_iter().find(|(s, ..)| s.starts_with("Ausfüllen und")).expect("translated heading is painted, whole or elided");
     assert!(heading.2.right() <= 316.0, "translated heading runs past the sidebar: {:?}", heading.2);
-    // A long sub-tool name must stop before its status chip, not paint over the PDF.
-    h.state_mut().left = LeftPanel::Tool("protect");
+    // A long retained sub-tool name must stay inside the sidebar.
+    h.state_mut().left = LeftPanel::Tool("accessibility");
     h.run_steps(4);
-    let item =
-        painted_text(&h).into_iter().find(|(s, ..)| s == "Ausgeblendete Informationen entfernen").expect("long translated sub-tool is painted");
+    let item = painted_text(&h).into_iter().find(|(s, ..)| s == "Barrierefreiheitsbericht öffnen").expect("long translated sub-tool is painted");
     assert!(item.2.right() <= 316.0, "translated tool item runs past the sidebar: {:?}", item.2);
 }
 
@@ -1257,6 +1258,62 @@ fn removed_tools_cannot_be_opened_or_run_from_the_interface() {
     h.run_steps(3);
     assert!(h.query_by_label("Combine files").is_none());
     assert_eq!(h.state().views.iter().map(|v| v.id).collect::<Vec<_>>(), document_ids);
+}
+
+#[test]
+fn readf_tool_selection_omits_removed_features_and_keeps_reader_tools() {
+    let mut h = harness(|app| {
+        app.default_mode = pdfcraft_ui_egui::Mode::AllTools;
+        app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).unwrap();
+    });
+    for label in
+        ["Export a PDF", "Prepare a form", "Use a certificate", "Protect a PDF", "Redact a PDF", "Add a stamp", "Compare files", "Use JavaScript"]
+    {
+        assert!(h.query_by_label(label).is_none(), "{label} must not appear in All tools");
+    }
+    for label in ["Fill & Sign", "Edit a PDF", "Add comments", "Scan & OCR", "Compress a PDF"] {
+        h.get_by_label(label);
+    }
+    assert!(h.query_by_label("View more").is_none(), "the shorter tool list does not need an expansion link");
+    // Search uses both registered commands and catalogue entries; neither may restore a
+    // removed feature. Direct engine/control commands remain available for automation.
+    for command in [
+        "comment.stamp",
+        "edit.link",
+        "form.add.text",
+        "form.export_data",
+        "sign.digital",
+        "protect.password",
+        "redact.mark",
+        "protect.remove_hidden",
+        "export.text",
+        "doc.compare",
+        "ocr.correct",
+        "a11y.reading_order",
+        "standards.pdfx",
+        "js.console",
+        "actions.distribution",
+    ] {
+        h.state_mut().set_option("palette", command).unwrap();
+        h.run_steps(3);
+        h.get_by_label("No matching tools");
+        h.key_press(egui::Key::Escape);
+        h.run_steps(2);
+    }
+    h.state_mut().set_option("dialog", "properties").unwrap();
+    h.run_steps(3);
+    assert!(h.query_by_label("Security").is_none());
+    h.state_mut().set_option("dialog", "preferences").unwrap();
+    h.run_steps(3);
+    assert!(h.query_by_label("Convert").is_none());
+    h.state_mut().set_option("dialog", "action-wizard").unwrap();
+    h.run_steps(3);
+    assert!(h.query_by_label("Sanitize Documents").is_none());
+    assert!(h.query_by_label("Prepare for Distribution").is_none());
+    h.get_by_label("Mark as Confidential");
+    let mut app = PdfCraftApp::new();
+    app.restore(r#"{"readf_ui_version":1,"default_mode":"convert"}"#);
+    assert_eq!(app.default_mode, pdfcraft_ui_egui::Mode::Read);
 }
 
 #[test]

@@ -209,7 +209,7 @@ trailer << /Root 1 0 R >>
 %%EOF";
 
 #[test]
-fn clicking_an_empty_signature_field_signs_it() {
+fn clicking_an_empty_signature_field_keeps_the_reader_unchanged() {
     let dir = dir().join("field");
     std::fs::create_dir_all(&dir).unwrap();
     let mut h = harness(dir.clone());
@@ -226,28 +226,13 @@ fn clicking_an_empty_signature_field_signs_it() {
     h.run_steps(1);
     h.drop_at(p);
     h.run_steps(3);
-    assert_eq!(h.state().dialog, Some(Dialog::Sign));
-    assert_eq!(h.state().sign_draft.as_ref().and_then(|d| d.field.clone()).as_deref(), Some("Approver"));
-    let entry = {
-        let id = pdfcraft_engine::sign::pkcs12::open(
-            &std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/../sign/tests/data/ec-p256.p12")).unwrap(),
-            "test",
-        )
-        .unwrap();
-        h.state_mut().add_digital_id(concat!(env!("CARGO_MANIFEST_DIR"), "/../sign/tests/data/ec-p256.p12"), &id.certificate)
-    };
-    {
-        let d = h.state_mut().sign_draft.as_mut().unwrap();
-        d.selected = Some(entry);
-        d.step = SignStep::SignAs;
-        d.password = "test".into();
-    }
-    h.run_steps(2);
-    h.get_by_label("Sign").click();
-    h.run_steps(6);
+    assert!(h.state().dialog.is_none(), "the removed signing UI must not open");
+    assert!(h.state().sign_draft.is_none());
     let s = h.state();
-    let sig = s.session.get(s.views[1].id).unwrap().signatures.iter().find(|x| x.field == "Approver").cloned().unwrap();
-    assert!(sig.signed && sig.visible);
+    let doc = s.session.get(s.views[1].id).unwrap();
+    assert!(!doc.dirty);
+    assert_eq!(doc.bytes.as_slice(), WITH_FIELD);
+    assert!(doc.signatures.iter().all(|signature| !signature.signed));
 }
 
 #[test]

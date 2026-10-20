@@ -110,6 +110,9 @@ pub(crate) fn page_input(
             .map(|(i, w)| (f, i, w))
     });
     let Some((f, wi, w)) = hit else { return false };
+    if f.kind == FormFieldKind::Signature && !crate::commands::command_visible("sign.digital") {
+        return false;
+    }
     // Empty signature fields are signed by clicking them (Use a certificate); push buttons run
     // their action.
     let pressable = f.kind == FormFieldKind::PushButton && !f.read_only() && f.button.is_some();

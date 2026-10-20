@@ -595,7 +595,7 @@ pub(crate) fn image_input(
                 *action = Some(ImageAction::Replace(page, hit));
                 ui.close();
             }
-            if ui.add_enabled(raster, egui::Button::new(tl!("Save Image As…"))).clicked() {
+            if crate::commands::command_visible("export.image") && ui.add_enabled(raster, egui::Button::new(tl!("Save Image As…"))).clicked() {
                 *action = Some(ImageAction::Save(page, hit));
                 ui.close();
             }
