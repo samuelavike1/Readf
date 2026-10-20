@@ -9,7 +9,7 @@ use pdfcraft_engine::{Edit, FillMark, NewAnnotation, PhotoRect, Shape, Signature
 use pdfcraft_render::{DocInfo, PageInfo};
 
 use crate::canvas::{DocView, PageXform};
-use crate::theme::Tokens;
+use crate::theme::{self, Tokens};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FillTool {
@@ -101,22 +101,6 @@ impl SigDraft {
             SavedSig::Typed(text) => Self { text: text.clone(), initials, editing: true, ..Default::default() },
             SavedSig::Image(image) => Self { image: Some(image.clone()), image_mode: true, initials, editing: true, ..Default::default() },
         }
-    }
-
-    /// Take back the last drawn stroke (and any dot-less empty one a bare click left behind it).
-    /// Returns whether a visible stroke was removed.
-    pub fn undo_stroke(&mut self) -> bool {
-        while let Some(s) = self.strokes.pop() {
-            if s.len() > 1 {
-                return true;
-            }
-        }
-        false
-    }
-
-    /// The Draw tab is showing (not Type, Image or Scan).
-    fn draw_tab(&self) -> bool {
-        self.drawing && !self.image_mode && !self.scan_mode
     }
 
     fn ready(&self) -> bool {
@@ -427,10 +411,9 @@ fn new(page: usize, shape: Shape, contents: String, author: &str) -> Edit {
     Edit::AddAnnotation(NewAnnotation { page, shape, style, contents, author: author.to_string() })
 }
 
-/// A typewriter annotation sized to its text, its displayed top-left at `at` on a page turned by
-/// `rotation` (its `/Rotate`).
-pub fn typed(page: usize, at: [f64; 2], text: &str, size: f64, rotation: i64, author: &str) -> Edit {
-    let rect = crate::comments::text_box_rect(at, text, size, rotation);
+/// A typewriter annotation sized to its text.
+pub fn typed(page: usize, at: [f64; 2], text: &str, size: f64, author: &str) -> Edit {
+    let rect = crate::comments::text_box_rect(at, text, size);
     new(page, Shape::Typewriter { rect, font_size: size }, text.to_string(), author)
 }
 
@@ -546,10 +529,10 @@ pub(crate) fn signature_entries(ui: &mut egui::Ui, app: &mut crate::PdfCraftApp,
             let use_label = label("Use {what}");
             response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, use_label.clone()));
             let painter = ui.painter_at(rect);
-            painter.rect_filled(rect, CornerRadius::same(4), Color32::WHITE);
+            painter.rect_filled(rect, CornerRadius::same(theme::RADIUS_CONTROL), Color32::WHITE);
             painter.rect_stroke(
                 rect,
-                CornerRadius::same(4),
+                CornerRadius::same(theme::RADIUS_CONTROL),
                 Stroke::new(1.0, if response.hovered() { t.accent } else { t.border }),
                 egui::StrokeKind::Inside,
             );
@@ -650,20 +633,16 @@ pub(crate) fn page_input(
     if !resp.clicked() {
         return None;
     }
-    // Typed text starts a little above the click, as displayed.
-    let rotation = i64::from(p.rotation);
-    let top = pdfcraft_engine::displayed_offset(rotation, at, 0.0, text_size * 0.6);
     match tool {
         FillTool::Text => {
             // Clicking away from an open box commits it: the page sees this click before the box
             // sees its lost focus, so replacing the box first would drop what was typed.
-            let open = view.fill_text.replace(TypeBox { page, at: top, text: String::new(), size: text_size, focus: true });
-            open.filter(|tb| !tb.text.trim().is_empty()).map(|tb| {
-                FillAction::Edit(Box::new(typed(tb.page, tb.at, tb.text.trim(), tb.size, crate::comments::page_rotation(info, tb.page), author)))
-            })
+            let open =
+                view.fill_text.replace(TypeBox { page, at: [at[0], at[1] + text_size * 0.6], text: String::new(), size: text_size, focus: true });
+            open.filter(|tb| !tb.text.trim().is_empty()).map(|tb| FillAction::Edit(Box::new(typed(tb.page, tb.at, tb.text.trim(), tb.size, author))))
         }
         FillTool::Date => Some(match date_text {
-            Ok(text) => FillAction::Edit(Box::new(typed(page, top, text, text_size, rotation, author))),
+            Ok(text) => FillAction::Edit(Box::new(typed(page, [at[0], at[1] + text_size * 0.6], text, text_size, author))),
             Err(why) => FillAction::Refused(why.clone()),
         }),
         FillTool::Signature => match signature {
@@ -740,7 +719,7 @@ pub(crate) fn type_box(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, 
     if commit {
         let tb = view.fill_text.take()?;
         if !tb.text.trim().is_empty() {
-            return Some(typed(tb.page, tb.at, tb.text.trim(), tb.size, crate::comments::page_rotation(info, tb.page), author));
+            return Some(typed(tb.page, tb.at, tb.text.trim(), tb.size, author));
         }
     }
     None
@@ -792,8 +771,8 @@ pub(crate) fn signature_pad(
         ui.label(egui::RichText::new(tl!("Choose a PNG or JPEG image (up to 4 MiB). Transparency is preserved.")).color(t.text_muted));
         let browse = crate::widgets::ghost_button(ui, "folder", tl!("Browse…")).clicked();
         let (rect, _) = ui.allocate_exact_size(vec2(460.0, 150.0), Sense::hover());
-        ui.painter().rect_filled(rect, CornerRadius::same(6), Color32::WHITE);
-        ui.painter().rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+        ui.painter().rect_filled(rect, CornerRadius::same(theme::RADIUS_CONTROL), Color32::WHITE);
+        ui.painter().rect_stroke(rect, CornerRadius::same(theme::RADIUS_CONTROL), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
         if let Some(image) = &d.image {
             image_preview(ui, rect.shrink(8.0), image, preview);
         }
@@ -811,8 +790,8 @@ pub(crate) fn signature_pad(
         .labelled_by(l.id);
         let (rect, _) = ui.allocate_exact_size(vec2(460.0, 150.0), Sense::hover());
         let painter = ui.painter_at(rect);
-        painter.rect_filled(rect, CornerRadius::same(6), Color32::WHITE);
-        painter.rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+        painter.rect_filled(rect, CornerRadius::same(theme::RADIUS_CONTROL), Color32::WHITE);
+        painter.rect_stroke(rect, CornerRadius::same(theme::RADIUS_CONTROL), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
         let key = SavedSig::Typed(d.text.clone());
         if preview.as_ref().is_none_or(|(s, _)| *s != key) {
             let img = script_preview(&d.text, 920, 300);
@@ -825,16 +804,11 @@ pub(crate) fn signature_pad(
         return (apply, cancel, false);
     }
     ui.label(egui::RichText::new(crate::i18n::fmt(tl!("Draw your {what} below."), &[("what", what)])).color(t.text_muted));
-    // The dialog is modal, so ⌘Z / Ctrl+Z here can only mean the last stroke (the document's own
-    // undo is blocked while it is open).
-    if ui.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
-        d.undo_stroke();
-    }
     let strokes = &mut d.strokes;
     let (rect, resp) = ui.allocate_exact_size(vec2(460.0, 150.0), Sense::drag());
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, CornerRadius::same(6), Color32::WHITE);
-    painter.rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    painter.rect_filled(rect, CornerRadius::same(theme::RADIUS_CONTROL), Color32::WHITE);
+    painter.rect_stroke(rect, CornerRadius::same(theme::RADIUS_CONTROL), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     painter.hline(rect.x_range().shrink(24.0), rect.bottom() - 34.0, Stroke::new(1.0, t.divider));
     // Normalised: x 0–1 across the pad, y up, in units of the pad's width.
     let norm = |p: Pos2| [(p.x - rect.left()) / rect.width(), (rect.bottom() - p.y) / rect.width()];
@@ -867,7 +841,7 @@ fn scan_tab(
 ) -> bool {
     ui.label(
         egui::RichText::new(tl!(
-            "Sign a sheet of white paper and take a photo of it in bright, even light (use the flash). Choose the photo or drop it here: PdfCraft finds the signature and removes the paper."
+            "Sign a sheet of white paper and take a photo of it in bright, even light (use the flash). Choose the photo or drop it here: Readf finds the signature and removes the paper."
         ))
         .color(t.text_muted),
     );
@@ -886,8 +860,8 @@ fn scan_tab(
     });
     let (area, resp) = ui.allocate_exact_size(vec2(460.0, 230.0), Sense::drag());
     let painter = ui.painter_at(area);
-    painter.rect_filled(area, CornerRadius::same(6), t.pasteboard);
-    painter.rect_stroke(area, CornerRadius::same(6), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    painter.rect_filled(area, CornerRadius::same(theme::RADIUS_CONTROL), t.pasteboard);
+    painter.rect_stroke(area, CornerRadius::same(theme::RADIUS_CONTROL), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     if let Some(scan) = d.scan.as_mut() {
         scan.poll(&mut d.image, Some(ui.ctx()));
     }
@@ -1014,8 +988,8 @@ fn scan_tab(
     });
     ui.add_space(4.0);
     let (rect, _) = ui.allocate_exact_size(vec2(460.0, 110.0), Sense::hover());
-    ui.painter().rect_filled(rect, CornerRadius::same(6), Color32::WHITE);
-    ui.painter().rect_stroke(rect, CornerRadius::same(6), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    ui.painter().rect_filled(rect, CornerRadius::same(theme::RADIUS_CONTROL), Color32::WHITE);
+    ui.painter().rect_stroke(rect, CornerRadius::same(theme::RADIUS_CONTROL), Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     if let Some(image) = &d.image {
         image_preview(ui, rect.shrink(8.0), image, preview);
     } else if let Some(problem) = &scan.problem {
@@ -1053,9 +1027,6 @@ fn pad_buttons(ui: &mut egui::Ui, d: &mut SigDraft) -> (bool, bool) {
     ui.add_space(10.0);
     let (mut apply, mut cancel) = (false, false);
     ui.horizontal(|ui| {
-        if d.draw_tab() && ui.add_enabled(!d.strokes.is_empty(), egui::Button::new(tl!("Undo"))).clicked() {
-            d.undo_stroke();
-        }
         if ui.button(tl!("Clear")).clicked() {
             d.strokes.clear();
             d.text.clear();
@@ -1241,18 +1212,6 @@ impl crate::PdfCraftApp {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn undo_removes_the_last_stroke_and_skips_empty_ones() {
-        let mut d = super::SigDraft { drawing: true, ..Default::default() };
-        assert!(!d.undo_stroke());
-        d.strokes = vec![vec![[0.1, 0.1], [0.2, 0.2]], vec![[0.3, 0.3], [0.4, 0.4]], vec![[0.5, 0.5]], vec![]];
-        assert!(d.undo_stroke());
-        assert_eq!(d.strokes.len(), 1);
-        assert!(d.undo_stroke());
-        assert!(d.strokes.is_empty());
-        assert!(!d.undo_stroke());
-    }
-
     #[test]
     fn long_signature_previews_have_clear_margins() {
         for text in ["Alexandria Catherine Elizabeth Montgomery-Wellington", "Jg Jg Jg Jg Jg Jg Jg Jg Jg Jg Jg"] {

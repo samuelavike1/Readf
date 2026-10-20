@@ -24,13 +24,14 @@ fn run_and_create_actions() {
         app
     });
     h.run_steps(2);
-    assert!(h.state_mut().execute("actions.distribution"));
+    assert!(h.state_mut().execute("actions.wizard"));
+    h.state_mut().wizard.selected = Some("Mark as Confidential".into());
     h.run_steps(2);
     h.get_by_label("Action Wizard");
-    h.get_by_label("1. Remove hidden information");
+    h.get_by_label("1. Add watermark: CONFIDENTIAL");
     h.get_by_label("Start").click();
     h.run_steps(3);
-    assert_eq!(h.state().toast.clone().unwrap().0, "Prepare for Distribution: 1 file done");
+    assert_eq!(h.state().toast.clone().unwrap().0, "Mark as Confidential: 1 file done");
     assert!(std::fs::read(dir.join("out/r.pdf")).unwrap().starts_with(b"%PDF"));
 
     // A new action of our own.
@@ -84,11 +85,12 @@ fn desktop_actions_preserve_duplicate_names_and_results_from_earlier_runs() {
     h.run_steps(2);
     for (first, second) in [(2, 3), (4, 5)] {
         // Start closes the wizard: reopen it just as a user does for the next run.
-        h.state_mut().execute("actions.distribution");
+        h.state_mut().execute("actions.wizard");
+        h.state_mut().wizard.selected = Some("Mark as Confidential".into());
         h.run_steps(2);
         h.get_by_label("Start").click();
         h.run_steps(3);
-        assert_eq!(h.state().toast.clone().unwrap().0, "Prepare for Distribution: 2 files done");
+        assert_eq!(h.state().toast.clone().unwrap().0, "Mark as Confidential: 2 files done");
         for (number, pages) in [(first, 3), (second, 1)] {
             let path = dir.join(format!("out/report ({number}).PDF"));
             let mut reopened = Session::new();

@@ -26,7 +26,8 @@ fn recognize_text_dialog_adds_searchable_text() {
     });
     h.run_steps(4);
     assert!(h.state_mut().execute("ocr.recognize"));
-    h.run_steps(2);
+    // Settle the scroll viewport and centered modal before clicking controls.
+    h.run_steps(5);
     h.get_by_label("Document language");
     h.get_by_label("Output");
     if !pdfcraft_engine::ocr::available() {
@@ -91,7 +92,8 @@ fn recognize_text_can_read_pictures_on_pages_with_text() {
     });
     h.run_steps(4);
     assert!(h.state_mut().execute("ocr.recognize"));
-    h.run_steps(2);
+    // Settle the scroll viewport and centered modal before clicking controls.
+    h.run_steps(5);
     assert!(h.state().ocr_draft.settings().skip_text_pages, "pages with text are skipped by default");
     h.get_by_label("Also recognize pages that already have text").click();
     h.run_steps(2);

@@ -20,8 +20,7 @@ clear_marks(&mut doc, None)?;                        // remove marks without app
 - **images**: fully covered → removed; partly covered → a copy with the covered pixels cleared
   (8/16-bit and 1/2/4-bit images, image masks; Flate/LZW/RL/A85/AHx). Codecs PdfCraft can't
   re-encode (DCT, JPX, JBIG2, CCITT) are removed whole (fail-closed); inline images under an
-  area are removed. Images with separate `/SMask` or `/Mask` data are removed whole;
-  cleared copies drop `/Alternates` so alternate pixels cannot survive;
+  area are removed;
 - **vectors**: covered paths are removed; partly covered paths and shadings are clipped so
   nothing paints inside the areas;
 - **form XObjects**: rewritten recursively into new objects (pages sharing the original keep it);
@@ -34,15 +33,16 @@ A verification pass re-reads each redacted page and fails the operation if any g
 image is still under an area. Content that can't be decoded makes the operation fail rather than
 leave it unredacted.
 
-Before changing any page, `apply` prepares the redaction appearances with a shared 8 MiB
-budget for their uncompressed PDF content across the selected pages. It bounds repeated-text
-counts and working line buffers before allocating them, and measures and encodes each repeated
-line once. Invalid or excessive appearances return `RedactError::OverlayLimit` without changing
-the document. Reduce the marked area, disable repeated text, or apply fewer pages at a time.
-This limits appearance generation; it is not a limit on the input PDF or the whole process's memory.
+Structure cleanup resolves named MCIDs and indirect content references, including elements
+reachable only through the parent tree or ID tree and pages inherited through ancestors.
+Form content references are updated to the cleaned copy; unchanged sibling descriptions remain.
+Removed annotations and flattened widgets also lose their structure-tree object references.
+Cleanup refuses trees that exceed the traversal limits and in-place elements it cannot safely
+rewrite, instead of reporting success with sensitive content still reachable.
 
-Structure cleanup resolves named MCIDs and indirect content references. Form content
-references are updated to the cleaned copy; unchanged sibling descriptions remain.
+`apply`, `remove_hidden`, and `sanitize` mutate their input and are not transactional. Run them
+on a working clone and replace the original only on success; discard the clone on any error.
+The engine's edit transaction already follows this rule.
 
 A redacted page that inherits `/Resources` from the page tree gets them pinned (by reference;
 a direct inherited dictionary is made one shared object first) before it is rewritten. The parent's
@@ -69,5 +69,5 @@ Security numbers and dates for Search & Redact.
 `CodeSet::from_id("foia")?.overlay(&["(b)(6)"])` gives the overlay text for the picked codes.
 Custom code sets aren't supported yet.
 
-Not yet: pattern locales, struct-tree/alt-text cleanup, metadata and hidden-information
-sanitising (M8.4), re-encoding of DCT images (they are removed instead).
+Not yet: pattern locales and re-encoding of DCT images (they are removed instead).
+In-place structure elements that need changing and trees beyond the cleanup limits are refused.

@@ -355,7 +355,7 @@ pub(crate) fn section(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
             let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 38.0), Sense::click());
             resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &f.name));
             if resp.hovered() {
-                ui.painter().rect_filled(rect, CornerRadius::same(8), t.hover);
+                ui.painter().rect_filled(rect, CornerRadius::same(theme::RADIUS_SURFACE), t.hover);
             }
             icons::paint(
                 ui,

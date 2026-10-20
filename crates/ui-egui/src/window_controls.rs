@@ -1,5 +1,6 @@
 //! Window buttons and resize edges for desktops that leave the window frame to the app.
 //!
+//! Windows uses the Home/tab row as its title bar, with rectangular controls on the right.
 //! GNOME on Wayland has no server-side decorations (the compositor offers no
 //! `zxdg_decoration_manager_v1`), so winit drew its own imitation frame. Instead the app turns the
 //! frame off and the tab strip becomes the header bar, as in GNOME's own apps: it carries the
@@ -65,10 +66,12 @@ impl Layout {
     }
 }
 
-/// The round button's diameter, as in Adwaita.
-pub const BUTTON: f32 = 24.0;
+/// Height of a window button; Windows fills the tab strip, GNOME keeps round controls.
+pub const BUTTON: f32 = if cfg!(target_os = "windows") { 38.0 } else { 24.0 };
+/// Windows caption buttons use wider hit targets.
+pub const BUTTON_WIDTH: f32 = if cfg!(target_os = "windows") { 46.0 } else { BUTTON };
 /// Between two window buttons.
-pub const GAP: f32 = 6.0;
+pub const GAP: f32 = if cfg!(target_os = "windows") { 0.0 } else { 6.0 };
 /// Between the window buttons and the rest of the strip.
 pub const SIDE_GAP: f32 = 10.0;
 
@@ -76,7 +79,7 @@ pub const SIDE_GAP: f32 = 10.0;
 pub fn width(buttons: &[Button]) -> f32 {
     match buttons.len() {
         0 => 0.0,
-        n => n as f32 * BUTTON + (n - 1) as f32 * GAP + SIDE_GAP,
+        n => n as f32 * BUTTON_WIDTH + (n - 1) as f32 * GAP + SIDE_GAP,
     }
 }
 
@@ -95,7 +98,7 @@ pub fn buttons(ui: &mut egui::Ui, buttons: &[Button]) {
             Button::Maximize => tl!("Maximize"),
             Button::Close => tl!("Close"),
         };
-        let (rect, response) = ui.allocate_exact_size(Vec2::splat(BUTTON), Sense::click());
+        let (rect, response) = ui.allocate_exact_size(Vec2::new(BUTTON_WIDTH, BUTTON), Sense::click());
         response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
         let response = response.on_hover_text(label);
         if ui.is_rect_visible(rect) {
@@ -113,8 +116,7 @@ pub fn buttons(ui: &mut egui::Ui, buttons: &[Button]) {
     }
 }
 
-/// Adwaita's look: a round wash of the text colour, stronger on hover and press, and a 16-point
-/// symbolic glyph drawn with lines (no icon files).
+/// Windows uses flat caption controls; GNOME keeps its round wash. Glyphs are simple lines.
 fn paint(painter: &egui::Painter, rect: Rect, button: Button, maximized: bool, t: &Tokens, response: &egui::Response) {
     let alpha = if response.is_pointer_button_down_on() {
         0.28
@@ -123,11 +125,30 @@ fn paint(painter: &egui::Painter, rect: Rect, button: Button, maximized: bool, t
     } else {
         0.10
     };
-    painter.circle_filled(rect.center(), BUTTON / 2.0, t.text.gamma_multiply(alpha));
-    if response.has_focus() {
-        painter.circle_stroke(rect.center(), BUTTON / 2.0 - 0.5, Stroke::new(1.0, t.accent));
+    let windows = cfg!(target_os = "windows");
+    let close_active = windows && button == Button::Close && (response.hovered() || response.is_pointer_button_down_on());
+    if windows {
+        let fill = if close_active {
+            // Keep enough contrast for the white close glyph in either theme.
+            Color32::from_rgb(0xDC, 0x26, 0x26)
+        } else if response.is_pointer_button_down_on() {
+            t.pressed
+        } else if response.hovered() {
+            t.hover
+        } else {
+            Color32::TRANSPARENT
+        };
+        painter.rect_filled(rect, 0.0, fill);
+        if response.has_focus() {
+            painter.rect_stroke(rect.shrink(2.0), 2.0, Stroke::new(1.0, t.accent), egui::StrokeKind::Inside);
+        }
+    } else {
+        painter.circle_filled(rect.center(), BUTTON / 2.0, t.text.gamma_multiply(alpha));
+        if response.has_focus() {
+            painter.circle_stroke(rect.center(), BUTTON / 2.0 - 0.5, Stroke::new(1.0, t.accent));
+        }
     }
-    let stroke = Stroke::new(1.25, t.text);
+    let stroke = Stroke::new(1.25, if close_active { Color32::WHITE } else { t.text });
     // The glyph's 16-point square, its corners on pixel centres so lines stay crisp.
     let c = rect.center();
     let at = |x: f32, y: f32| Pos2::new((c.x - 8.0 + x).round() + 0.5, (c.y - 8.0 + y).round() + 0.5);
@@ -256,8 +277,8 @@ mod tests {
     #[test]
     fn widths_cover_the_buttons_and_their_gaps() {
         assert_eq!(super::width(&[]), 0.0);
-        assert_eq!(super::width(&[Button::Close]), super::BUTTON + super::SIDE_GAP);
-        assert_eq!(super::width(&Layout::default().right), 3.0 * super::BUTTON + 2.0 * super::GAP + super::SIDE_GAP);
+        assert_eq!(super::width(&[Button::Close]), super::BUTTON_WIDTH + super::SIDE_GAP);
+        assert_eq!(super::width(&Layout::default().right), 3.0 * super::BUTTON_WIDTH + 2.0 * super::GAP + super::SIDE_GAP);
     }
 
     #[test]

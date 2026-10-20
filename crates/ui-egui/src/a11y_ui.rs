@@ -77,14 +77,17 @@ pub(crate) fn options_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
     let o = &mut app.a11y_options;
     o.to = o.to.clamp(1, pages);
     o.from = o.from.clamp(1, o.to);
-    ui.label(egui::RichText::new(tl!("Accessibility Checker Options")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_title(ui, tl!("Accessibility Checker Options"));
     ui.add_space(8.0);
     let group = |ui: &mut egui::Ui, title: &str, body: &mut dyn FnMut(&mut egui::Ui)| {
         ui.label(egui::RichText::new(tl!(title)).font(theme::semibold(13.0)));
-        egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(10)).show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            body(ui);
-        });
+        egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::same(10)).show(
+            ui,
+            |ui| {
+                ui.set_width(ui.available_width());
+                body(ui);
+            },
+        );
         ui.add_space(8.0);
     };
     group(ui, "Report Options", &mut |ui| {
@@ -110,16 +113,19 @@ pub(crate) fn options_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
             });
         });
         ui.add_space(4.0);
-        for r in Rule::ALL.into_iter().filter(|r| r.category() == o.category) {
-            let mut checked = o.rules.contains(&r);
-            if ui.add(widgets::checkbox(&mut checked, tl!(r.description()))).changed() {
-                if checked {
-                    o.rules.insert(r);
-                } else {
-                    o.rules.remove(&r);
+        let max_height = (ui.ctx().content_rect().height() - 460.0).clamp(120.0, 260.0);
+        egui::ScrollArea::vertical().id_salt("a11y-rules").max_height(max_height).show(ui, |ui| {
+            for r in Rule::ALL.into_iter().filter(|r| r.category() == o.category) {
+                let mut checked = o.rules.contains(&r);
+                if ui.add(widgets::checkbox(&mut checked, tl!(r.description()))).changed() {
+                    if checked {
+                        o.rules.insert(r);
+                    } else {
+                        o.rules.remove(&r);
+                    }
                 }
             }
-        }
+        });
         ui.add_space(4.0);
         ui.horizontal(|ui| {
             if ui.button(tl!("Select All")).clicked() {
@@ -343,27 +349,6 @@ pub(crate) fn panel(ui: &mut egui::Ui, t: &Tokens, state: &mut A11yState, doc: D
 }
 
 impl PdfCraftApp {
-    /// Prepare for accessibility ▸ Find untagged content.
-    pub(crate) fn find_untagged_content(&mut self) {
-        let Some((_, id)) = self.active_ids() else { return };
-        let Some(doc) = self.session.get(id) else { return };
-        let options = Options { rules: [Rule::TaggedContent, Rule::TaggedAnnotations, Rule::TaggedFormFields].into_iter().collect(), pages: None };
-        let Some(report) = doc.accessibility_check(&options) else {
-            self.notify_tr("This document can't be checked: it couldn't be read for editing");
-            return;
-        };
-        let failed = report.count(Status::Failed);
-        self.a11y.previous = None;
-        self.a11y.options = Some(options);
-        self.a11y.report = Some((id, report));
-        self.right = Some(RightPanel::Accessibility);
-        self.notify(if failed == 0 {
-            tl!("No untagged content was found.").to_string()
-        } else {
-            crate::i18n::fmt(tl!("Found {n} untagged content problems."), &[("n", &failed.to_string())])
-        });
-    }
-
     /// Check for accessibility: the options first, unless they are turned off.
     pub(crate) fn start_accessibility_check(&mut self) {
         if self.a11y_options.show_dialog {
@@ -563,7 +548,7 @@ pub(crate) fn alt_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> 
     let ctx = ui.ctx().clone();
     let doc = app.alt_draft.doc.and_then(|id| app.session.get(id));
     let d = &mut app.alt_draft;
-    ui.label(egui::RichText::new(tl!("Set Alternate Text")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_title(ui, tl!("Set Alternate Text"));
     ui.add_space(8.0);
     let n = d.figures.len();
     if n == 0 {
@@ -587,20 +572,23 @@ pub(crate) fn alt_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> 
             .color(t.text_muted),
     );
     ui.add_space(6.0);
-    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
-        let (area, _) = ui.allocate_exact_size(egui::vec2(380.0, 220.0), egui::Sense::hover());
-        match &d.preview {
-            Some((_, tex)) => {
-                let s = tex.size_vec2();
-                let k = (area.width() / s.x).min(area.height() / s.y).min(2.0);
-                let fit = egui::Rect::from_center_size(area.center(), s * k);
-                ui.painter().image(tex.id(), fit, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::same(8)).show(
+        ui,
+        |ui| {
+            let (area, _) = ui.allocate_exact_size(egui::vec2(380.0, 220.0), egui::Sense::hover());
+            match &d.preview {
+                Some((_, tex)) => {
+                    let s = tex.size_vec2();
+                    let k = (area.width() / s.x).min(area.height() / s.y).min(2.0);
+                    let fit = egui::Rect::from_center_size(area.center(), s * k);
+                    ui.painter().image(tex.id(), fit, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+                }
+                None => {
+                    ui.painter().text(area.center(), egui::Align2::CENTER_CENTER, tl!("No preview"), theme::regular(13.0), t.text_faint);
+                }
             }
-            None => {
-                ui.painter().text(area.center(), egui::Align2::CENTER_CENTER, tl!("No preview"), theme::regular(13.0), t.text_faint);
-            }
-        }
-    });
+        },
+    );
     ui.add_space(8.0);
     ui.add_enabled_ui(!d.decorative[i], |ui| {
         let l = ui.label(tl!("Alternate text"));
@@ -629,12 +617,6 @@ pub(crate) fn alt_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> 
 }
 
 impl PdfCraftApp {
-    /// Prepare for accessibility ▸ Tag form fields.
-    pub(crate) fn autotag_form_fields(&mut self) {
-        self.apply_edit(pdfcraft_engine::Edit::AutoTagFormFields);
-        self.choose_right_panel(Some(RightPanel::Tags));
-    }
-
     /// Prepare for accessibility ▸ Add alternate text.
     pub(crate) fn start_alt_text(&mut self) {
         let Some((_, id)) = self.active_ids() else { return };

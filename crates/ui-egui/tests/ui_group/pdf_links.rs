@@ -40,7 +40,7 @@ fn drag(h: &mut Harness<'static, PdfCraftApp>, a: Pos2, b: Pos2) {
 
 fn links(h: &Harness<'static, PdfCraftApp>) -> Vec<pdfcraft_engine::LinkItem> {
     let s = h.state();
-    s.session.get(s.views[0].id).unwrap().links().to_vec()
+    s.session.get(s.views[0].id).unwrap().links.clone()
 }
 
 #[test]
@@ -115,7 +115,7 @@ fn right_click(h: &mut Harness<'static, PdfCraftApp>, p: Pos2) {
 }
 
 #[test]
-fn the_link_context_menu_shows_only_for_a_right_click_on_a_link() {
+fn the_reader_does_not_offer_link_editing_on_right_click() {
     let mut h = harness();
     assert!(h.state_mut().execute("edit.link"));
     let (a, b) = (at(&h, 40.0, 100.0), at(&h, 160.0, 120.0));
@@ -136,12 +136,11 @@ fn the_link_context_menu_shows_only_for_a_right_click_on_a_link() {
     assert!(h.query_by_label("Remove all links").is_none(), "a right-click away from the link got the link menu");
     h.key_press(egui::Key::Escape);
     h.run_steps(3);
-    // A right-click on the link gets it, with the Select tool too.
+    // Back in the reader, right-clicking an existing link must not expose authoring.
     h.state_mut().quick_tool = pdfcraft_ui_egui::QuickTool::Select;
     h.run_steps(2);
     right_click(&mut h, on_link);
-    h.get_by_label("Remove all links").click();
-    h.run_steps(3);
-    assert!(links(&h).is_empty());
-    assert_eq!(h.state().session.get(h.state().views[0].id).unwrap().can_undo(), Some("Remove all links"));
+    assert!(h.query_by_label("Remove all links").is_none());
+    assert!(h.query_by_label("Properties…").is_none());
+    assert_eq!(links(&h).len(), 1, "the existing PDF link is preserved");
 }

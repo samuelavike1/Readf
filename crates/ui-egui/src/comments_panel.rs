@@ -14,9 +14,6 @@ use crate::panels::Nav;
 use crate::theme::{self, Tokens};
 use crate::{icons, widgets};
 
-/// Accent bar of the selected card (11-visual-spec §3: `#0165DD`).
-const CARD_ACCENT: Color32 = Color32::from_rgb(0x01, 0x65, 0xDD);
-
 /// Reader-friendly names for annotation subtypes (the PDF names are shown in tooltips).
 pub fn subtype_label(s: &str) -> &str {
     match s {
@@ -122,10 +119,24 @@ pub(crate) fn show(
     }
     // "Add a comment": a sticky note on the current page, near its top-right corner.
     if allowed {
-        let r = ui.add(
-            crate::widgets::line(&mut view.comments.add_box).hint_text(tl!("Add a comment")).desired_width(f32::INFINITY).id_salt("comment-add-box"),
-        );
-        if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !view.comments.add_box.trim().is_empty() {
+        let post_width = (widgets::text_width(ui, tl!("Post"), &theme::medium(theme::TEXT_BODY)) + 28.0).max(64.0);
+        let field_width = (ui.available_width() - post_width - ui.spacing().item_spacing.x - 20.0).max(1.0);
+        let (enter, post) = ui
+            .horizontal(|ui| {
+                let r = ui.add(
+                    crate::widgets::line(&mut view.comments.add_box)
+                        .hint_text(tl!("Add a comment"))
+                        .desired_width(field_width)
+                        .id_salt("comment-add-box"),
+                );
+                let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                let ok = !view.comments.add_box.trim().is_empty();
+                let post = ui.add_enabled_ui(ok, |ui| widgets::pill_button(ui, tl!("Post"), true)).inner;
+                post.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ok, tl!("Post comment")));
+                (enter, post.clicked())
+            })
+            .inner;
+        if (enter || post) && !view.comments.add_box.trim().is_empty() {
             let page = view.current.min(info.pages.len().saturating_sub(1));
             if let Some(p) = info.pages.get(page) {
                 let at = p.view_to_user(p.width - 44.0, 24.0);
@@ -148,7 +159,7 @@ pub(crate) fn show(
             ui.add_space(8.0);
             ui.label(egui::RichText::new(tl!("No comments yet.")).color(t.text_muted));
             if allowed {
-                ui.label(egui::RichText::new(tl!("Pick a tool in the quick bar, or type above.")).color(t.text_faint).small());
+                ui.label(egui::RichText::new(tl!("Type a comment above, then select Post or press Enter.")).color(t.text_faint).small());
             }
         });
         return edit;
@@ -199,13 +210,6 @@ pub(crate) fn show(
             SortBy::Date => None,
         }
     };
-    // A comment selected elsewhere (on the page, or just added) opens its folded group, or the
-    // card it should scroll to would not be drawn.
-    if view.comments.reveal
-        && let Some((p, _)) = view.comments.selected
-    {
-        view.comments.collapsed_pages.retain(|&c| c != p);
-    }
     let mut page = usize::MAX;
     let mut group: Option<String> = None;
     for a in roots {
@@ -222,37 +226,17 @@ pub(crate) fn show(
         } else if a.page != page {
             page = a.page;
             let n = info.annotations.iter().filter(|x| x.page == page && x.in_reply_to.is_none()).count();
-            let open = !view.comments.collapsed_pages.contains(&page);
             ui.add_space(6.0);
-            let clicked = ui
-                .horizontal(|ui| {
-                    let chevron = if open { "chevron-down" } else { "chevron-right" };
-                    let toggle = icons::button(ui, chevron, 18.0, false, if open { tl!("Collapse") } else { tl!("Expand") }).clicked();
-                    let label = ui.add(
-                        egui::Label::new(
-                            egui::RichText::new(crate::i18n::fmt(tl!("Page {label}"), &[("label", &info.pages[page].label)]))
-                                .font(theme::semibold(12.5))
-                                .color(t.text_muted),
-                        )
-                        .sense(Sense::click()),
-                    );
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.label(egui::RichText::new(n.to_string()).color(t.text_faint).small())
-                    });
-                    toggle || label.clicked()
-                })
-                .inner;
-            if clicked {
-                if open {
-                    view.comments.collapsed_pages.push(page);
-                } else {
-                    view.comments.collapsed_pages.retain(|&c| c != page);
-                }
-            }
+            ui.horizontal(|ui| {
+                ui.add(icons::image("chevron-down", 14.0, t.text_muted));
+                ui.label(
+                    egui::RichText::new(crate::i18n::fmt(tl!("Page {label}"), &[("label", &info.pages[page].label)]))
+                        .font(theme::semibold(12.5))
+                        .color(t.text_muted),
+                );
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| ui.label(egui::RichText::new(n.to_string()).color(t.text_faint).small()));
+            });
             ui.add_space(2.0);
-        }
-        if sort == SortBy::Page && view.comments.collapsed_pages.contains(&a.page) {
-            continue;
         }
         let thread = replies_of(a);
         if let Some(e) = card(ui, t, a, &thread, view, prefs, allowed, nav) {
@@ -286,7 +270,7 @@ fn card(
     let mut more_rect = None;
     let frame = egui::Frame::NONE
         .fill(fill)
-        .corner_radius(CornerRadius::same(6))
+        .corner_radius(CornerRadius::same(theme::RADIUS_CONTROL))
         .inner_margin(egui::Margin { left: 10, right: 8, top: 10, bottom: 10 })
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
@@ -300,14 +284,14 @@ fn card(
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     if selected && allowed {
-                        let more = icons::button(ui, "ellipsis", 22.0, false, tl!("More"));
+                        let more = icons::button(ui, "ellipsis", 28.0, false, tl!("More"));
                         open_menu = more.clicked();
                         more_rect = Some(more.rect);
                     }
                     // Acrobat's per-comment checkmark: a toggle on the selected card, a mark otherwise.
                     let tip = if marked { tl!("Remove checkmark") } else { tl!("Mark with checkmark") };
                     if selected && allowed {
-                        if icons::button(ui, "circle-check", 22.0, marked, tip).clicked() {
+                        if icons::button(ui, "circle-check", 28.0, marked, tip).clicked() {
                             edit = Some(Edit::MarkAnnotation { page: a.page, index: a.index, marked: !marked, author: prefs.author.clone() });
                         }
                     } else if marked {
@@ -326,17 +310,13 @@ fn card(
                     if !r.has_focus() && !ui.memory(|m| m.focused().is_some()) {
                         r.request_focus();
                     }
-                    let submit = crate::comments::submit_key(ui, &r, false);
                     ui.horizontal(|ui| {
-                        if (ui
-                            .add(egui::Button::new(egui::RichText::new(tl!("Save")).color(Color32::WHITE)).fill(t.accent).corner_radius(12))
-                            .clicked()
-                            || submit)
+                        if widgets::pill_button(ui, tl!("Save"), true).clicked()
                             && let Some((page, index, text)) = view.comments.editing.take()
                         {
                             edit = Some(Edit::SetAnnotationContents { page, index, text });
                         }
-                        if ui.button(tl!("Cancel")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                             view.comments.editing = None;
                         }
                     });
@@ -367,7 +347,7 @@ fn card(
                 let resp = ui.horizontal(|ui| {
                     avatar(ui, t, None, Some(&initials(r.author.as_deref().unwrap_or("?"))), t.text_faint);
                     ui.vertical(|ui| {
-                        ui.spacing_mut().item_spacing.y = 2.0;
+                        ui.spacing_mut().item_spacing.y = theme::SPACE_XS;
                         ui.horizontal(|ui| {
                             let author = r.author.as_deref().map_or_else(|| tl!("Reply").into(), crate::bidi::visual_auto);
                             ui.label(egui::RichText::new(author).font(theme::semibold(12.0)));
@@ -388,18 +368,15 @@ fn card(
                     // around the button can't fit every language's "Post" exactly, and any overflow
                     // would widen the resizable panel again on every repaint.
                     let r = ui.add(
-                        crate::widgets::block(&mut view.comments.reply)
-                            .desired_rows(1)
-                            .return_key(egui::KeyboardShortcut::new(egui::Modifiers::SHIFT, egui::Key::Enter))
+                        crate::widgets::line(&mut view.comments.reply)
                             .hint_text(tl!("Add a reply"))
                             .desired_width(f32::INFINITY)
                             .id_salt(("comment-reply", key)),
                     );
-                    let enter = crate::comments::submit_key(ui, &r, true);
+                    let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                     let ok = !view.comments.reply.trim().is_empty();
-                    let post =
-                        ui.with_layout(Layout::right_to_left(Align::Min), |ui| ui.add_enabled(ok, egui::Button::new(tl!("Post")).corner_radius(12)));
-                    if (post.inner.clicked() || enter) && ok {
+                    let post = ui.add_enabled_ui(ok, |ui| widgets::pill_button(ui, tl!("Post"), true)).inner;
+                    if (post.clicked() || enter) && ok {
                         let text = std::mem::take(&mut view.comments.reply).trim().to_string();
                         edit = Some(Edit::ReplyToAnnotation { page: a.page, index: a.index, text, author: prefs.author.clone() });
                     }
@@ -413,12 +390,12 @@ fn card(
     let rect = frame.response.rect;
     if selected {
         let bar = egui::Rect::from_min_size(rect.min, vec2(4.0, rect.height()));
-        ui.painter().rect_filled(bar, CornerRadius { nw: 6, sw: 6, ne: 0, se: 0 }, CARD_ACCENT);
+        ui.painter().rect_filled(bar, CornerRadius { nw: theme::RADIUS_CONTROL, sw: theme::RADIUS_CONTROL, ne: 0, se: 0 }, t.accent);
         if std::mem::take(&mut view.comments.reveal) {
             frame.response.scroll_to_me(Some(Align::Center));
         }
     }
-    ui.painter().hline(rect.x_range().shrink(10.0), rect.bottom() + 2.0, Stroke::new(1.0, t.divider));
+    ui.painter().hline(rect.x_range().shrink(10.0), rect.bottom() + 2.0, Stroke::new(1.0, t.divider.gamma_multiply(0.55)));
     ui.add_space(5.0);
     // The header row selects the card (and shows the comment on the page); unselected cards are
     // clickable everywhere.
@@ -530,7 +507,7 @@ pub(crate) fn header_controls(ui: &mut egui::Ui, info: &DocInfo, view: &mut DocV
         && cv.hidden_statuses.is_empty()
         && cv.hidden_colors.is_empty()
         && cv.hidden_checks.is_empty());
-    let more = icons::button(ui, "ellipsis", 26.0, false, tl!("More options"));
+    let more = icons::button(ui, "ellipsis", theme::CONTROL_COMPACT, false, tl!("More options"));
     egui::Popup::menu(&more).show(|ui| {
         ui.set_min_width(220.0);
         ui.label(egui::RichText::new(tl!("Sort by")).small());
@@ -543,20 +520,6 @@ pub(crate) fn header_controls(ui: &mut egui::Ui, info: &DocInfo, view: &mut DocV
         ] {
             if ui.add(widgets::radio(cv.sort == s, label)).clicked() {
                 cv.sort = s;
-                ui.close();
-            }
-        }
-        // Only the page sort has folding groups.
-        if cv.sort == SortBy::Page {
-            ui.separator();
-            if ui.button(tl!("Collapse all pages")).clicked() {
-                cv.collapsed_pages = info.annotations.iter().map(|a| a.page).collect();
-                cv.collapsed_pages.sort_unstable();
-                cv.collapsed_pages.dedup();
-                ui.close();
-            }
-            if ui.button(tl!("Expand all pages")).clicked() {
-                cv.collapsed_pages.clear();
                 ui.close();
             }
         }
@@ -573,7 +536,7 @@ pub(crate) fn header_controls(ui: &mut egui::Ui, info: &DocInfo, view: &mut DocV
             }
         }
     });
-    let filter = icons::button(ui, "filter", 26.0, active, tl!("Filter comments"));
+    let filter = icons::button(ui, "filter", theme::CONTROL_COMPACT, active, tl!("Filter comments"));
     egui::Popup::menu(&filter).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
         ui.set_min_width(200.0);
         let toggle = |ui: &mut egui::Ui, list: &mut Vec<String>, value: &str, label: &str| {

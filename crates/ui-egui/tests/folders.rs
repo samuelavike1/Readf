@@ -59,6 +59,8 @@ fn harness(setup: impl FnOnce(&mut PdfCraftApp) + 'static) -> Harness<'static, P
     });
     // Fonts install on frame 1 and apply on frame 2.
     h.run_steps(4);
+    h.get_by_label("Folders").click();
+    h.run_steps(3);
     h
 }
 

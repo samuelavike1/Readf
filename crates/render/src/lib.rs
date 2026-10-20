@@ -14,11 +14,10 @@ mod raster;
 mod reading;
 mod structure;
 pub mod text;
-pub mod transition;
 
 pub use inspect::{
     Annotation, Attachment, AttachmentSource, DestView, DocInfo, Field, FieldKind, FontInfo, Layer, LayerOp, Link, LinkTarget, OutlineItem, PageInfo,
-    PageTransition, RemoteDestination, TransitionStyle, Xfa, attachment_data, check_pages, inspect, pretty_date,
+    RemoteDestination, Xfa, attachment_data, check_pages, inspect, pretty_date,
 };
 pub use pixels::Pixels;
 pub use raster::{

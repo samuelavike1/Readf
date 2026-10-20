@@ -384,7 +384,7 @@ pub fn show(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
     style.resize_window_label = crate::i18n::t("Resize panel window").into();
     style.background = t.panel;
     style.tab_background = t.chrome;
-    style.active_background = t.selected;
+    style.active_background = t.panel;
     style.text = t.text;
     style.inactive_text = t.text_muted;
     style.border = egui::Stroke::new(1.0, t.divider);
@@ -409,10 +409,7 @@ pub fn show(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
                 match app.active {
                     None if app.combine_showing() => crate::combine_ui::page(app, ui),
                     None => crate::home::show(app, ui),
-                    Some(index) => match crate::compare_ui::side_by_side(app, index) {
-                        Some((old, new)) => crate::compare_ui::compare_area(app, old, new, ui),
-                        None => crate::canvas::document_area(app, index, ui),
-                    },
+                    Some(index) => crate::canvas::document_area(app, index, ui),
                 }
             }
             Panel::Tools => crate::panels::left_panel(app, ui),

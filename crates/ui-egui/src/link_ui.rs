@@ -7,7 +7,7 @@ use pdfcraft_engine::{Edit, LinkAction, LinkHighlight, LinkItem, LinkStyle};
 use pdfcraft_render::DocInfo;
 
 use crate::canvas::{DocView, PageXform};
-use crate::theme::{self, Tokens};
+use crate::theme::Tokens;
 use crate::{PdfCraftApp, widgets};
 
 const LINK_BLUE: Color32 = Color32::from_rgb(0x14, 0x73, 0xE6);
@@ -149,7 +149,7 @@ impl PdfCraftApp {
     /// Open Link Properties for a new link area or an existing link.
     pub(crate) fn open_link_props(&mut self, page: usize, rect: Option<[f64; 4]>, index: Option<usize>) {
         let Some((_, id)) = self.active_ids() else { return };
-        let existing = index.and_then(|i| self.session.get(id).and_then(|d| d.links().iter().find(|l| l.page == page && l.index == i).cloned()));
+        let existing = index.and_then(|i| self.session.get(id).and_then(|d| d.links.iter().find(|l| l.page == page && l.index == i).cloned()));
         let draft = match existing {
             Some(l) => LinkDraft {
                 page,
@@ -203,7 +203,7 @@ impl PdfCraftApp {
     /// Remove every link in the active document.
     pub fn remove_all_links(&mut self) {
         let Some((_, id)) = self.active_ids() else { return };
-        let count = self.session.get(id).map_or(0, |d| d.links().len());
+        let count = self.session.get(id).map_or(0, |d| d.links.len());
         if count == 0 {
             self.notify_tr("No links to remove");
             return;
@@ -221,7 +221,7 @@ impl PdfCraftApp {
 /// Link Properties. Returns (apply, cancel).
 pub(crate) fn body(ui: &mut egui::Ui, d: &mut LinkDraft, pages: usize, t: &Tokens) -> (bool, bool) {
     ui.set_width(460.0);
-    ui.label(egui::RichText::new(if d.index.is_some() { tl!("Link Properties") } else { tl!("Create Link") }).font(theme::semibold(18.0)));
+    crate::widgets::dialog_title(ui, if d.index.is_some() { tl!("Link Properties") } else { tl!("Create Link") });
     ui.add_space(8.0);
     widgets::section_title(ui, tl!("Link Appearance"));
     egui::Grid::new("link-appearance").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {

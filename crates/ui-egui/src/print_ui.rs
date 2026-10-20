@@ -14,9 +14,6 @@ const PREVIEW_W: f32 = 320.0;
 const PREVIEW_H: f32 = 380.0;
 const PREVIEW_INSET: f32 = 12.0;
 pub(crate) const PREVIEW_BOX: (f32, f32) = (PREVIEW_W - 2.0 * PREVIEW_INSET, PREVIEW_H - 2.0 * PREVIEW_INSET);
-/// Label printing reads the printed area of at most this many pages (each is a quick render on
-/// the UI thread); further pages print whole.
-pub(crate) const LABEL_CROP_PAGES: usize = 50;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Which {
@@ -33,8 +30,6 @@ pub enum Handling {
     Poster,
     Multiple,
     Booklet,
-    /// Shipping label: cut to the printed area, turned upright, one per sheet.
-    Label,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -72,9 +67,6 @@ pub struct PrintDraft {
     pub cut_marks: bool,
     pub orientation: Orientation,
     pub content: Content,
-    /// Print as image (Acrobat's Advanced Print Setup) at `dpi`.
-    pub as_image: bool,
-    pub dpi: f64,
     pub paper: usize,
     /// The sheet shown in the preview (0-based).
     pub sheet: usize,
@@ -86,13 +78,6 @@ pub struct PrintDraft {
     pub show_driver_options: bool,
     /// Why the printer's preferences window didn't open (Windows).
     pub driver_error: Option<String>,
-    /// Label: turn a further 180°.
-    pub label_flip: bool,
-    /// Label: each page's printed area and text direction, read when Label is chosen
-    /// ([`PdfCraftApp::read_label_crops`]); empty until then.
-    pub crops: Vec<Option<print::Crop>>,
-    /// The pages `crops` were read for, so a changed page selection reads them again.
-    pub crop_pages: Option<Vec<usize>>,
 }
 
 impl Default for PrintDraft {
@@ -126,8 +111,6 @@ impl Default for PrintDraft {
             cut_marks: true,
             orientation: Orientation::Auto,
             content: Content::DocumentAndMarkups,
-            as_image: false,
-            dpi: 300.0,
             paper: 0,
             sheet: 0,
             current_page: 0,
@@ -135,9 +118,6 @@ impl Default for PrintDraft {
             driver_choices: Default::default(),
             show_driver_options: false,
             driver_error: None,
-            label_flip: false,
-            crops: Vec::new(),
-            crop_pages: None,
         }
     }
 }
@@ -175,17 +155,8 @@ impl PrintDraft {
             },
             Handling::Booklet => Layout::Booklet { subset: self.booklet_subset, binding: self.binding },
             Handling::Poster => Layout::Poster { scale: self.poster_scale, overlap: self.overlap, cut_marks: self.cut_marks },
-            Handling::Label => Layout::Label { flip: self.label_flip },
         };
-        Ok(print::Settings {
-            pages,
-            paper: PAPERS[self.paper.min(PAPERS.len() - 1)].1,
-            orientation: self.orientation,
-            layout,
-            content: self.content,
-            raster: self.as_image.then_some(print::Raster { dpi: self.dpi, grayscale: self.grayscale }),
-            crops: self.crops.clone(),
-        })
+        Ok(print::Settings { pages, paper: PAPERS[self.paper.min(PAPERS.len() - 1)].1, orientation: self.orientation, layout, content: self.content })
     }
 
     pub fn job(&self, title: &str) -> spool::Job {
@@ -201,11 +172,7 @@ impl PrintDraft {
             options: match (&self.printer, &self.driver_options) {
                 (Some(p), Some((read_for, _))) if p == read_for => self.driver_choices.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
                 _ => Vec::new(),
-            }
-            .into_iter()
-            // The sheet the PDF was laid out on, not the queue's default paper.
-            .chain(print::cups_media(self.paper).map(|m| ("media".to_string(), m.to_string())))
-            .collect(),
+            },
         }
     }
 }
@@ -221,16 +188,13 @@ pub fn system_printers() -> PrinterSource {
 }
 
 /// The Print dialog's work in the background: the printer list being read, and the jobs being
-/// spooled, oldest first.
+/// spooled (the printer each was sent to, and the spooler's answer).
 #[derive(Default)]
 pub(crate) struct PrintTasks {
     #[cfg(not(target_arch = "wasm32"))]
     printers: Option<std::sync::mpsc::Receiver<Vec<spool::Printer>>>,
     #[cfg(not(target_arch = "wasm32"))]
-    jobs: Vec<PrintJob>,
-    /// The progress card is showing a print job (it is shared with other long jobs).
-    #[cfg(not(target_arch = "wasm32"))]
-    showing_progress: bool,
+    jobs: Vec<(String, std::sync::mpsc::Receiver<Result<String, String>>)>,
     /// The browser print being drawn, a sheet a frame (`web_print`).
     #[cfg(target_arch = "wasm32")]
     web_job: Option<crate::web_print::WebPrintJob>,
@@ -256,32 +220,9 @@ fn listed_printers() -> Vec<spool::Printer> {
     }
 }
 
-/// The first list is still being read and the user hasn't chosen yet (#160): no printer is
-/// selected only because none is known yet, so the dialog says it is looking rather than
-/// offering Save as PDF, and its button waits. Printing then would have saved a PDF.
-fn still_looking(d: &PrintDraft) -> bool {
-    d.printers_loading && d.printer.is_none() && !d.printer_picked
-}
-
 /// A printer's name as the dialog shows it.
 fn printer_label(name: &str) -> String {
     if name == crate::web_print::BROWSER_PRINTER { crate::web_print::browser_printer_label().to_string() } else { name.to_string() }
-}
-
-/// A job being spooled: its printer, the sheets sent so far of how many, and its worker's news.
-#[cfg(not(target_arch = "wasm32"))]
-struct PrintJob {
-    printer: String,
-    sheets: Option<(usize, usize)>,
-    news: std::sync::mpsc::Receiver<JobNews>,
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-enum JobNews {
-    /// `(sent, sheets)`: the spooler has this many of the job's sheets.
-    Sent(usize, usize),
-    /// The spooler's answer.
-    Done(Result<String, String>),
 }
 
 /// The printer the dialog preselects: the system default, else the first.
@@ -313,8 +254,6 @@ impl PdfCraftApp {
             (true, other) => other,
         };
         self.print_draft = PrintDraft {
-            crops: Vec::new(),
-            crop_pages: None,
             printers,
             printers_loading,
             printer_picked: false,
@@ -327,50 +266,6 @@ impl PdfCraftApp {
             ..keep
         };
         self.dialog = Some(crate::Dialog::Print);
-    }
-
-    /// Label printing: find each printed page's printed area (a quick low-resolution render, as
-    /// Fit Visible does) and which way its text runs. Only the pages being printed are read, at
-    /// most [`LABEL_CROP_PAGES`] of them (the rest print whole); read again when they change.
-    pub(crate) fn read_label_crops(&mut self, id: pdfcraft_engine::DocId) {
-        let Some(doc) = self.session.get(id) else { return };
-        let labels: Vec<String> = doc.info.pages.iter().map(|p| p.label.clone()).collect();
-        let mut pages = self.print_draft.settings(doc.info.pages.len(), &labels).map(|s| s.pages).unwrap_or_default();
-        pages.sort_unstable();
-        pages.dedup();
-        pages.truncate(LABEL_CROP_PAGES);
-        if self.print_draft.crop_pages.as_ref() == Some(&pages) {
-            return;
-        }
-        let up = self.session.print_text_up(id, &pages);
-        let config = pdfcraft_render::RenderConfig { password: doc.password.as_deref().map(std::sync::Arc::from), ..Default::default() };
-        let mut r = pdfcraft_render::PageRenderer::new(doc.bytes.clone(), config);
-        self.print_draft.crops = doc
-            .info
-            .pages
-            .iter()
-            .enumerate()
-            .map(|(page, p)| {
-                let (w, h) = (f64::from(p.width), f64::from(p.height));
-                if pages.binary_search(&page).is_err() || w <= 0.0 || h <= 0.0 {
-                    return None;
-                }
-                let out = r.render(pdfcraft_render::RenderRequest {
-                    page,
-                    kind: pdfcraft_render::RequestKind::Pixels,
-                    tile: None,
-                    scale: (1000.0 / w.max(h) as f32).clamp(0.1, 4.0),
-                    tag: 0,
-                    preview: false,
-                });
-                let [u0, v0, u1, v1] = crate::zoom_snap::ink_bounds(out.width as usize, out.height as usize, &out.rgba)?;
-                // Image rows run down from the top; display space runs up. Half a millimetre of slack.
-                let pad = 1.5;
-                let rect = [f64::from(u0) * w - pad, (1.0 - f64::from(v1)) * h - pad, f64::from(u1) * w + pad, (1.0 - f64::from(v0)) * h + pad];
-                Some(print::Crop { rect, text_up: up.get(page).copied().unwrap_or(false) })
-            })
-            .collect();
-        self.print_draft.crop_pages = Some(pages);
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -415,60 +310,20 @@ impl PdfCraftApp {
                 }
             }
             let mut finished = Vec::new();
-            self.print_tasks.jobs.retain_mut(|job| {
-                loop {
-                    match job.news.try_recv() {
-                        Ok(JobNews::Sent(sent, sheets)) => job.sheets = Some((sent, sheets)),
-                        Ok(JobNews::Done(r)) => {
-                            finished.push((job.printer.clone(), r));
-                            break false;
-                        }
-                        Err(std::sync::mpsc::TryRecvError::Empty) => break true,
-                        Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                            finished.push((job.printer.clone(), Err("the print job stopped unexpectedly".into())));
-                            break false;
-                        }
-                    }
+            self.print_tasks.jobs.retain(|(printer, rx)| match rx.try_recv() {
+                Ok(r) => {
+                    finished.push((printer.clone(), r));
+                    false
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => true,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    finished.push((printer.clone(), Err("the print job stopped unexpectedly".into())));
+                    false
                 }
             });
-            self.show_print_progress();
             for (printer, result) in finished {
                 self.report_print_job(&printer, result);
             }
-        }
-    }
-
-    /// The oldest job being spooled on the progress card, counting its sheets as they reach the
-    /// spooler, while no other long job holds the card.
-    #[cfg(not(target_arch = "wasm32"))]
-    fn show_print_progress(&mut self) {
-        let Some(job) = self.print_tasks.jobs.first() else {
-            if std::mem::take(&mut self.print_tasks.showing_progress) {
-                self.progress_notice = None;
-            }
-            return;
-        };
-        if self.progress_notice.is_some() && !self.print_tasks.showing_progress {
-            return;
-        }
-        let printer = job.printer.as_str();
-        let (label, fraction) = match job.sheets {
-            Some((sent, sheets)) if sheets > 0 => {
-                // The sheet on its way: one past those sent, until the last is.
-                let sheet = sent.saturating_add(1).min(sheets).to_string();
-                let label = crate::i18n::fmt(
-                    tl!("Sending sheet {s} of {n} to {printer}…"),
-                    &[("s", &sheet), ("n", &sheets.to_string()), ("printer", printer)],
-                );
-                (label, sent as f32 / sheets as f32)
-            }
-            _ => (crate::i18n::fmt(tl!("Sending to {printer}…"), &[("printer", printer)]), 0.0),
-        };
-        self.progress_notice = Some(crate::widgets::ProgressNotice { label, fraction, cancellable: false });
-        self.print_tasks.showing_progress = true;
-        // The bar's sweep keeps moving between sheets.
-        if let Some(ctx) = &self.ctx {
-            ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
     }
 
@@ -524,29 +379,20 @@ impl PdfCraftApp {
     }
 
     /// Spool a job off the UI thread: on Windows every sheet is rendered at the printer's
-    /// resolution first, which can take minutes for a long document. The dialog closes at once,
-    /// the progress card counts the sheets as they reach the spooler, and the spooler's answer
-    /// arrives as a notice.
+    /// resolution first, which can take minutes for a long document. The dialog closes at once
+    /// and the spooler's answer arrives as a notice.
     #[cfg(not(target_arch = "wasm32"))]
     fn send_to_printer(&mut self, printer: String, bytes: Vec<u8>, job: spool::Job) -> bool {
         let (tx, rx) = std::sync::mpsc::channel();
         let ctx = self.ctx.clone();
         std::thread::spawn(move || {
-            let repaint = || {
-                if let Some(ctx) = &ctx {
-                    ctx.request_repaint();
-                }
-            };
-            // The receiver may be gone (the app quit): nothing to report to then.
-            let result = spool::submit_with_progress(&bytes, &job, &mut |sent, sheets| {
-                let _ = tx.send(JobNews::Sent(sent, sheets));
-                repaint();
-            });
-            let _ = tx.send(JobNews::Done(result.map_err(|e| e.to_string())));
-            repaint();
+            let _ = tx.send(spool::submit(&bytes, &job).map_err(|e| e.to_string()));
+            if let Some(ctx) = ctx {
+                ctx.request_repaint();
+            }
         });
-        self.print_tasks.jobs.push(PrintJob { printer, sheets: None, news: rx });
-        self.show_print_progress();
+        self.notify(crate::i18n::fmt(tl!("Sending to {printer}…"), &[("printer", &printer)]));
+        self.print_tasks.jobs.push((printer, rx));
         true
     }
 
@@ -732,55 +578,61 @@ pub(crate) fn preview_rasters(d: &PrintDraft, sizes: &[(f64, f64)], labels: &[St
 /// Only choices away from the printer's defaults are kept, and sent with the job.
 fn driver_options_panel(ui: &mut egui::Ui, d: &mut PrintDraft, t: &Tokens) {
     let PrintDraft { driver_options: Some((_, options)), driver_choices: choices, show_driver_options: show, .. } = d else { return };
-    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(10)).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        ui.horizontal(|ui| {
-            ui.label(egui::RichText::new(tl!("Printer properties")).font(theme::semibold(13.0)));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(tl!("Done")).clicked() {
-                    *show = false;
-                }
-                if ui.add_enabled(!choices.is_empty(), egui::Button::new(tl!("Reset to printer defaults"))).clicked() {
-                    choices.clear();
-                }
-            });
-        });
-        if options.is_empty() {
-            ui.label(egui::RichText::new(tl!("This printer offers no settings of its own.")).small().color(t.text_muted));
-            return;
-        }
-        egui::ScrollArea::vertical().id_salt("driver-options").max_height(240.0).show(ui, |ui| {
-            for (n, chunk) in options.chunk_by(|a, b| a.group == b.group).enumerate() {
-                let group = chunk.first().map_or("", |o| o.group.as_str());
-                if !group.is_empty() {
-                    ui.add_space(4.0);
-                    // Option and group names are the driver's own text.
-                    ui.label(egui::RichText::new(group).small().color(t.text_muted));
-                }
-                egui::Grid::new(("driver-group", n)).num_columns(2).spacing([10.0, 4.0]).show(ui, |ui| {
-                    for o in chunk {
-                        ui.label(&o.label);
-                        let current = choices.get(&o.key).cloned().unwrap_or_else(|| o.default.clone());
-                        let label_of = |c: &str| o.choices.iter().find(|(k, _)| k == c).map_or_else(|| c.to_string(), |(_, l)| l.clone());
-                        let mut pick = current.clone();
-                        egui::ComboBox::from_id_salt(("driver-option", &o.key)).selected_text(label_of(&current)).width(200.0).show_ui(ui, |ui| {
-                            for (k, l) in &o.choices {
-                                ui.selectable_value(&mut pick, k.clone(), l.as_str());
-                            }
-                        });
-                        if pick != current {
-                            if pick == o.default {
-                                choices.remove(&o.key);
-                            } else {
-                                choices.insert(o.key.clone(), pick);
-                            }
-                        }
-                        ui.end_row();
+    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::same(10)).show(
+        ui,
+        |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new(tl!("Printer properties")).font(theme::semibold(13.0)));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button(tl!("Done")).clicked() {
+                        *show = false;
+                    }
+                    if ui.add_enabled(!choices.is_empty(), egui::Button::new(tl!("Reset to printer defaults"))).clicked() {
+                        choices.clear();
                     }
                 });
+            });
+            if options.is_empty() {
+                ui.label(egui::RichText::new(tl!("This printer offers no settings of its own.")).small().color(t.text_muted));
+                return;
             }
-        });
-    });
+            egui::ScrollArea::vertical().id_salt("driver-options").max_height(240.0).show(ui, |ui| {
+                for (n, chunk) in options.chunk_by(|a, b| a.group == b.group).enumerate() {
+                    let group = chunk.first().map_or("", |o| o.group.as_str());
+                    if !group.is_empty() {
+                        ui.add_space(4.0);
+                        // Option and group names are the driver's own text.
+                        ui.label(egui::RichText::new(group).small().color(t.text_muted));
+                    }
+                    egui::Grid::new(("driver-group", n)).num_columns(2).spacing([10.0, 4.0]).show(ui, |ui| {
+                        for o in chunk {
+                            ui.label(&o.label);
+                            let current = choices.get(&o.key).cloned().unwrap_or_else(|| o.default.clone());
+                            let label_of = |c: &str| o.choices.iter().find(|(k, _)| k == c).map_or_else(|| c.to_string(), |(_, l)| l.clone());
+                            let mut pick = current.clone();
+                            egui::ComboBox::from_id_salt(("driver-option", &o.key)).selected_text(label_of(&current)).width(200.0).show_ui(
+                                ui,
+                                |ui| {
+                                    for (k, l) in &o.choices {
+                                        ui.selectable_value(&mut pick, k.clone(), l.as_str());
+                                    }
+                                },
+                            );
+                            if pick != current {
+                                if pick == o.default {
+                                    choices.remove(&o.key);
+                                } else {
+                                    choices.insert(o.key.clone(), pick);
+                                }
+                            }
+                            ui.end_row();
+                        }
+                    });
+                }
+            });
+        },
+    );
 }
 
 fn combo<T: PartialEq + Copy>(ui: &mut egui::Ui, id: &str, value: &mut T, choices: &[(T, &str)], width: f32) {
@@ -802,28 +654,51 @@ pub(crate) fn body(
     labels: &[String],
     thumb: &mut dyn FnMut(usize) -> Option<egui::TextureId>,
 ) -> (bool, bool) {
-    ui.set_width(820.0);
-    ui.label(egui::RichText::new(tl!("Print")).font(theme::semibold(18.0)));
-    ui.add_space(8.0);
+    crate::widgets::dialog_title(ui, tl!("Print"));
+    ui.spacing_mut().scroll.floating = false;
+    // Reserve the title, card padding and viewport margin while keeping standard
+    // controls and the in-flow print actions visible at ordinary window heights.
+    let max_height = (ui.ctx().content_rect().height() - 104.0).max(180.0);
+    egui::ScrollArea::vertical()
+        .id_salt("print-content")
+        .min_scrolled_height(max_height)
+        .max_height(max_height)
+        .auto_shrink([false, true])
+        .show(ui, |ui| print_content(ui, d, t, sizes, labels, thumb))
+        .inner
+}
+
+fn print_content(
+    ui: &mut egui::Ui,
+    d: &mut PrintDraft,
+    t: &Tokens,
+    sizes: &[(f64, f64)],
+    labels: &[String],
+    thumb: &mut dyn FnMut(usize) -> Option<egui::TextureId>,
+) -> (bool, bool) {
+    ui.spacing_mut().item_spacing.y = theme::SPACE_XS;
+    let width = ui.available_width();
+    let stacked = width < 760.0;
+    let preview_width = width.min(300.0);
+    let settings_width = if stacked { width } else { width - preview_width - 24.0 };
+    let compact = settings_width < 430.0;
     let settings = d.settings(sizes.len(), labels);
     let sheets = settings.as_ref().ok().and_then(|s| print::layout(sizes, s).ok()).unwrap_or_default();
     d.sheet = d.sheet.min(sheets.len().saturating_sub(1));
-    ui.horizontal_top(|ui| {
+    let layout = if stacked { egui::Layout::top_down(egui::Align::Min) } else { egui::Layout::left_to_right(egui::Align::Min) };
+    ui.allocate_ui_with_layout(vec2(width, 0.0), layout, |ui| {
         // Settings.
         ui.vertical(|ui| {
-            ui.set_width(470.0);
-            egui::Grid::new("print-top").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
+            ui.set_width(settings_width);
+            egui::Grid::new("print-top").num_columns(if compact { 1 } else { 2 }).spacing([12.0, 10.0]).show(ui, |ui| {
                 ui.label(tl!("Printer:"));
+                if compact { ui.end_row(); }
                 let before = d.printer.clone();
                 // The browser's print dialog sets copies, two-sided printing and colour itself.
                 let browser = d.printer.as_deref() == Some(crate::web_print::BROWSER_PRINTER);
-                ui.horizontal(|ui| {
-                    let shown = match d.printer.as_deref() {
-                        Some(p) => printer_label(p),
-                        None if still_looking(d) => tl!("Looking for printers…").to_string(),
-                        None => tl!("Save as PDF").to_string(),
-                    };
-                    egui::ComboBox::from_id_salt("printer").selected_text(shown).width(260.0).show_ui(ui, |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    let shown = d.printer.as_deref().map_or_else(|| tl!("Save as PDF").to_string(), printer_label);
+                    egui::ComboBox::from_id_salt("printer").selected_text(shown).width(if compact { (settings_width - 8.0).min(260.0) } else { 220.0 }).show_ui(ui, |ui| {
                         if d.printers_loading {
                             ui.add_enabled(false, egui::Label::new(tl!("Looking for printers…")));
                         }
@@ -836,11 +711,7 @@ pub(crate) fn body(
                             };
                             ui.selectable_value(&mut d.printer, Some(p.name.clone()), label);
                         }
-                        // Chosen even when it was already the selection, so the list arriving
-                        // later doesn't replace it with the default printer.
-                        if ui.selectable_value(&mut d.printer, None, tl!("Save as PDF")).clicked() {
-                            d.printer_picked = true;
-                        }
+                        ui.selectable_value(&mut d.printer, None, tl!("Save as PDF"));
                     });
                     let tip = if spool::HAS_PRINTER_PREFERENCES {
                         tl!("Opens the printer driver's preferences. They are saved for every print from this computer; the copies, two-sided, grayscale and paper chosen here still apply.")
@@ -868,20 +739,10 @@ pub(crate) fn body(
                     d.driver_error = None;
                 }
                 ui.end_row();
-                // The spooler answered with no printer at all (#160): say so, rather than
-                // leaving Save as PDF looking like the only thing PdfCraft can do.
-                if !d.printers_loading && d.printers.is_empty() {
-                    ui.label("");
-                    ui.label(
-                        egui::RichText::new(tl!("No printers were found. Check that the printer is installed and the print spooler is running, then open Print again."))
-                            .small()
-                            .color(t.text_muted),
-                    );
-                    ui.end_row();
-                }
                 ui.label(tl!("Copies:"));
+                if compact { ui.end_row(); }
                 ui.add_enabled_ui(!browser, |ui| {
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         ui.add(egui::DragValue::new(&mut d.copies).range(1..=999));
                         ui.add(widgets::checkbox(&mut d.collate, tl!("Collate")));
                         ui.add(widgets::checkbox(&mut d.grayscale, tl!("Print in grayscale")));
@@ -889,6 +750,7 @@ pub(crate) fn body(
                 });
                 ui.end_row();
                 ui.label(tl!("Two-sided:"));
+                if compact { ui.end_row(); }
                 ui.add_enabled_ui(!browser, |ui| {
                     combo(
                         ui,
@@ -904,18 +766,13 @@ pub(crate) fn body(
                 });
                 ui.end_row();
                 ui.label(tl!("Paper:"));
+                if compact { ui.end_row(); }
                 let paper_name = PAPERS.get(d.paper).map_or("US Letter", |p| p.0);
-                let before = d.paper;
-                egui::ComboBox::from_id_salt("paper").selected_text(tl!(paper_name)).width(260.0).show_ui(ui, |ui| {
+                egui::ComboBox::from_id_salt("paper").selected_text(paper_name).width(if compact { (settings_width - 8.0).min(260.0) } else { 220.0 }).show_ui(ui, |ui| {
                     for (i, (name, _)) in PAPERS.iter().enumerate() {
-                        ui.selectable_value(&mut d.paper, i, tl!(name));
+                        ui.selectable_value(&mut d.paper, i, *name);
                     }
                 });
-                // Label stock gets the label layout (cut, turned upright, fitted).
-                if d.paper != before && d.paper == print::LABEL_PAPER {
-                    d.handling = Handling::Label;
-                    d.sheet = 0;
-                }
                 ui.end_row();
             });
             // Windows says which drivers can't print two-sided as they're asked; they keep their
@@ -950,8 +807,8 @@ pub(crate) fn body(
                 });
             }
             ui.add_space(6.0);
-            widgets::section_title(ui, tl!("Pages to Print"));
-            ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(tl!("Pages to Print")).font(theme::subtitle()));
+            ui.horizontal_wrapped(|ui| {
                 widgets::radio_value(ui, &mut d.which, Which::All, tl!("All"));
                 widgets::radio_value(ui, &mut d.which, Which::Current, tl!("Current page"));
                 widgets::radio_value(ui, &mut d.which, Which::Range, tl!("Pages"));
@@ -968,7 +825,7 @@ pub(crate) fn body(
                 let label = format!("{} ({})", tl!("Selected pages"), d.selected.len());
                 widgets::radio_value(ui, &mut d.which, Which::Selected, label);
             }
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 ui.label(tl!("More options:"));
                 combo(
                     ui,
@@ -980,34 +837,29 @@ pub(crate) fn body(
                 ui.add(widgets::checkbox(&mut d.reverse, tl!("Reverse pages")));
             });
             ui.add_space(6.0);
-            widgets::section_title(ui, tl!("Page Sizing & Handling"));
+            ui.label(egui::RichText::new(tl!("Page Sizing & Handling")).font(theme::subtitle()));
             ui.horizontal_wrapped(|ui| {
                 for (h, label) in [
                     (Handling::Size, tl!("Size")),
                     (Handling::Poster, tl!("Poster")),
                     (Handling::Multiple, tl!("Multiple")),
                     (Handling::Booklet, tl!("Booklet")),
-                    (Handling::Label, tl!("Label")),
                 ] {
                     if widgets::mode_tab(ui, label, d.handling == h).clicked() {
                         d.handling = h;
                         d.sheet = 0;
-                        // A label goes on label stock.
-                        if h == Handling::Label {
-                            d.paper = print::LABEL_PAPER;
-                        }
                     }
                 }
             });
             ui.add_space(4.0);
             match d.handling {
                 Handling::Size => {
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         widgets::radio_value(ui, &mut d.size, SizeMode::Fit, tl!("Fit"));
                         widgets::radio_value(ui, &mut d.size, SizeMode::Actual, tl!("Actual size"));
                         widgets::radio_value(ui, &mut d.size, SizeMode::Shrink, tl!("Shrink oversized pages"));
                     });
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         let custom = matches!(d.size, SizeMode::Custom(_));
                         if ui.add(widgets::radio(custom, tl!("Custom scale:"))).clicked() {
                             d.size = SizeMode::Custom(d.custom_scale);
@@ -1015,27 +867,23 @@ pub(crate) fn body(
                         ui.add_enabled(custom, egui::DragValue::new(&mut d.custom_scale).range(1.0..=1000.0).suffix(" %"));
                     });
                 }
-                Handling::Label => {
-                    ui.add(widgets::checkbox(&mut d.label_flip, tl!("Turn upside down (180°)")));
-                    ui.label(
-                        egui::RichText::new(tl!("Cuts each page to its printed area, turns it upright and fits it to the sheet without stretching. One label per sheet."))
-                            .small()
-                            .color(t.text_muted),
-                    );
-                }
                 Handling::Poster => {
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         ui.label(tl!("Tile scale:"));
                         ui.add(egui::DragValue::new(&mut d.poster_scale).range(10.0..=1000.0).suffix(" %"));
+                    });
+                    ui.horizontal_wrapped(|ui| {
                         ui.label(tl!("Overlap:"));
                         ui.add(egui::DragValue::new(&mut d.overlap).range(0.0..=144.0).suffix(" pt"));
                         ui.add(widgets::checkbox(&mut d.cut_marks, tl!("Cut marks")));
                     });
                 }
                 Handling::Multiple => {
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         ui.label(tl!("Pages per sheet:"));
                         combo(ui, "per-sheet", &mut d.per_sheet, &[(2, "2"), (4, "4"), (6, "6"), (9, "9"), (16, "16")], 60.0);
+                    });
+                    ui.horizontal_wrapped(|ui| {
                         ui.label(tl!("Page order:"));
                         combo(
                             ui,
@@ -1051,7 +899,7 @@ pub(crate) fn body(
                             150.0,
                         );
                     });
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         ui.add(widgets::checkbox(&mut d.border, tl!("Print page border")));
                         ui.add(widgets::checkbox(&mut d.auto_rotate, tl!("Auto-rotate pages")));
                     });
@@ -1062,7 +910,7 @@ pub(crate) fn body(
                     }
                 }
                 Handling::Booklet => {
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         ui.label(tl!("Booklet subset:"));
                         combo(
                             ui,
@@ -1075,20 +923,22 @@ pub(crate) fn body(
                             ],
                             130.0,
                         );
+                    });
+                    ui.horizontal_wrapped(|ui| {
                         ui.label(tl!("Binding:"));
                         combo(ui, "binding", &mut d.binding, &[(Binding::Left, tl!("Left")), (Binding::Right, tl!("Right"))], 80.0);
                     });
                 }
             }
             ui.add_space(6.0);
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 ui.label(tl!("Orientation:"));
                 widgets::radio_value(ui, &mut d.orientation, Orientation::Auto, tl!("Auto portrait/landscape"));
                 widgets::radio_value(ui, &mut d.orientation, Orientation::Portrait, tl!("Portrait"));
                 widgets::radio_value(ui, &mut d.orientation, Orientation::Landscape, tl!("Landscape"));
             });
             ui.add_space(6.0);
-            widgets::section_title(ui, tl!("Comments & Forms"));
+            ui.label(egui::RichText::new(tl!("Comments & Forms")).font(theme::subtitle()));
             combo(
                 ui,
                 "content",
@@ -1101,42 +951,19 @@ pub(crate) fn body(
                 ],
                 220.0,
             );
-            // Advanced (Acrobat's Advanced Print Setup): print as image. Folded unless it is on.
-            ui.add_space(6.0);
-            egui::CollapsingHeader::new(egui::RichText::new(tl!("Advanced").to_uppercase()).font(theme::semibold(10.5)).color(t.text_faint))
-                .id_salt("print-advanced")
-                .default_open(d.as_image)
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.add(widgets::checkbox(&mut d.as_image, tl!("Print as image")));
-                        ui.add_enabled_ui(d.as_image, |ui| {
-                            ui.label(tl!("Resolution:"));
-                            let mut dpi = d.dpi.round() as u32;
-                            combo(ui, "print-dpi", &mut dpi, &[(150, "150 dpi"), (300, "300 dpi"), (600, "600 dpi")], 100.0);
-                            d.dpi = f64::from(dpi);
-                        });
-                    });
-                    ui.label(
-                        egui::RichText::new(tl!(
-                            "Use it when a printer skips text, shading or transparency. The print is no longer searchable text; with Print in grayscale, the pictures are grey."
-                        ))
-                        .small()
-                        .color(t.text_muted),
-                    );
-                });
         });
         ui.add_space(12.0);
         // Preview.
         ui.vertical(|ui| {
-            ui.set_width(PREVIEW_W);
-            let (area, _) = ui.allocate_exact_size(vec2(PREVIEW_W, PREVIEW_H), egui::Sense::hover());
-            ui.painter().rect_filled(area, 6.0, t.hover);
+            ui.set_width(preview_width);
+            let (area, _) = ui.allocate_exact_size(vec2(preview_width, preview_width * PREVIEW_H / PREVIEW_W), egui::Sense::hover());
+            ui.painter().rect_filled(area, theme::RADIUS_CONTROL, t.hover);
             match (&settings, sheets.get(d.sheet)) {
                 (Err(e), _) => {
                     ui.put(area.shrink(16.0), egui::Label::new(egui::RichText::new(tl!(e)).color(t.text_muted)).wrap());
                 }
                 (Ok(_), Some(sheet)) => {
-                    let k = (PREVIEW_BOX.0 / sheet.size.0 as f32).min(PREVIEW_BOX.1 / sheet.size.1 as f32);
+                    let k = ((area.width() - 2.0 * PREVIEW_INSET) / sheet.size.0 as f32).min((area.height() - 2.0 * PREVIEW_INSET) / sheet.size.1 as f32);
                     let paper = Rect::from_center_size(area.center(), vec2(sheet.size.0 as f32 * k, sheet.size.1 as f32 * k));
                     ui.painter().rect_filled(paper, 0.0, Color32::WHITE);
                     ui.painter().rect_stroke(paper, 0.0, Stroke::new(1.0, t.border), egui::StrokeKind::Outside);
@@ -1196,7 +1023,7 @@ pub(crate) fn body(
                 }
                 _ => {}
             }
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
                 let n = sheets.len();
                 if ui.add_enabled(d.sheet > 0, egui::Button::new("‹")).on_hover_text(tl!("Previous sheet")).clicked() {
                     d.sheet -= 1;
@@ -1227,10 +1054,9 @@ pub(crate) fn body(
     });
     ui.add_space(12.0);
     let (mut go, mut cancel) = (false, false);
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        let looking = still_looking(d);
-        let label = if d.printer.is_some() || looking { tl!("Print") } else { tl!("Save as PDF") };
-        if ui.add_enabled_ui(settings.is_ok() && !sheets.is_empty() && !looking, |ui| widgets::pill_button(ui, label, true)).inner.clicked() {
+    ui.allocate_ui_with_layout(vec2(ui.available_width(), 34.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        let label = if d.printer.is_some() { "Print" } else { "Save as PDF" };
+        if ui.add_enabled_ui(settings.is_ok() && !sheets.is_empty(), |ui| widgets::pill_button(ui, tl!(label), true)).inner.clicked() {
             go = true;
         }
         if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
@@ -1279,46 +1105,6 @@ mod tests {
         assert_eq!(job.scaling, spool::Scaling::Exact);
         assert_eq!(job.duplex, Some(spool::Duplex::LongEdge));
         assert_eq!(PrintDraft::default().job("report.pdf").duplex, Some(spool::Duplex::Off));
-    }
-
-    /// A job being spooled holds the progress card, counting its sheets as the spooler reports
-    /// them; the card goes when the job ends and its answer arrives as a notice. A card another
-    /// long job is showing is left alone.
-    #[cfg(not(target_arch = "wasm32"))]
-    #[test]
-    fn the_progress_card_counts_the_sheets_of_a_print_job() {
-        let mut app = PdfCraftApp::new();
-        app.set_option("language", "en").unwrap();
-        let (tx, rx) = std::sync::mpsc::channel();
-        app.print_tasks.jobs.push(PrintJob { printer: "Office".into(), sheets: None, news: rx });
-        app.poll_print();
-        assert_eq!(app.progress_notice.as_ref().map(|p| p.label.as_str()), Some("Sending to Office…"));
-
-        tx.send(JobNews::Sent(0, 3)).unwrap();
-        tx.send(JobNews::Sent(1, 3)).unwrap();
-        app.poll_print();
-        let shown = app.progress_notice.clone().unwrap();
-        assert_eq!(shown.label, "Sending sheet 2 of 3 to Office…");
-        assert!((shown.fraction - 1.0 / 3.0).abs() < 1e-4 && !shown.cancellable, "{shown:?}");
-
-        tx.send(JobNews::Sent(3, 3)).unwrap();
-        tx.send(JobNews::Done(Ok(String::new()))).unwrap();
-        app.poll_print();
-        assert!(app.progress_notice.is_none() && app.print_tasks.jobs.is_empty());
-        assert_eq!(app.toast.as_ref().map(|t| t.0.as_str()), Some("Sent to Office"));
-
-        // Another job's card stays; a worker that vanished is reported, not left spinning.
-        let other = crate::widgets::ProgressNotice { label: "Optimizing…".into(), fraction: 0.5, cancellable: true };
-        app.progress_notice = Some(other.clone());
-        let (tx, rx) = std::sync::mpsc::channel();
-        app.print_tasks.jobs.push(PrintJob { printer: "Office".into(), sheets: None, news: rx });
-        tx.send(JobNews::Sent(1, 2)).unwrap();
-        app.poll_print();
-        assert_eq!(app.progress_notice, Some(other));
-        drop(tx);
-        app.poll_print();
-        assert!(app.print_tasks.jobs.is_empty() && app.progress_notice.is_some());
-        assert_eq!(app.toast.as_ref().map(|t| t.0.as_str()), Some("the print job stopped unexpectedly"));
     }
 
     /// Issue #1308: Current page is the page on screen, even when a later page is labelled with

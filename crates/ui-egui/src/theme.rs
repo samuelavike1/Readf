@@ -1,10 +1,17 @@
-//! Design tokens and egui style (plan/acrobat/02-ui-ux.md §1: neutral chrome, white panels,
-//! one blue accent; Dark Gray keeps pages white). Every custom widget reads `Tokens::get`.
+//! Readf design tokens: untinted neutral surfaces, monochrome actions and restrained selection colour.
+//! Every custom widget reads `Tokens::get`; document colours are independent of the UI theme.
 
 use std::sync::Arc;
 
 use egui::epaint::text::{FontTweak, HintingTarget, SmoothHinting};
 use egui::{Color32, CornerRadius, FontData, FontDefinitions, FontFamily, FontId, Rect, Response, Stroke, Vec2, Visuals};
+
+/// Subtle corners for buttons, fields, tabs and list selections, in logical points.
+pub const RADIUS_CONTROL: u8 = 3;
+/// Corners for dialogs, menus, cards and other floating surfaces.
+pub const RADIUS_SURFACE: u8 = 4;
+/// Small boxes and progress tracks stay visibly square at compact sizes.
+pub const RADIUS_SMALL: u8 = 2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum ThemeKind {
@@ -58,6 +65,9 @@ pub struct Tokens {
     pub hover: Color32,
     pub pressed: Color32,
     pub selected: Color32,
+    /// Filled actions are independent of the selection/focus accent.
+    pub primary: Color32,
+    pub primary_text: Color32,
     pub accent: Color32,
     pub accent_text: Color32,
     pub accent_soft: Color32,
@@ -72,51 +82,55 @@ impl Tokens {
         match kind {
             ThemeKind::Light => Self {
                 kind,
-                titlebar: Color32::from_rgb(0xE9, 0xE9, 0xEB),
-                chrome: Color32::from_rgb(0xFF, 0xFF, 0xFF),
+                titlebar: Color32::from_rgb(0xE5, 0xE5, 0xE5),
+                chrome: Color32::from_rgb(0xFA, 0xFA, 0xFA),
                 panel: Color32::from_rgb(0xFF, 0xFF, 0xFF),
-                pasteboard: Color32::from_rgb(0xF1, 0xF1, 0xF3),
+                pasteboard: Color32::from_rgb(0xE5, 0xE5, 0xE5),
                 card: Color32::from_rgb(0xFF, 0xFF, 0xFF),
-                border: Color32::from_rgb(0xDA, 0xDA, 0xDE),
-                divider: Color32::from_rgb(0xE8, 0xE8, 0xEB),
-                text: Color32::from_rgb(0x22, 0x22, 0x26),
-                text_muted: Color32::from_rgb(0x5E, 0x5E, 0x66),
-                text_faint: Color32::from_rgb(0x6B, 0x6B, 0x73),
-                icon: Color32::from_rgb(0x44, 0x44, 0x4B),
-                hover: Color32::from_rgb(0xF0, 0xF0, 0xF3),
-                pressed: Color32::from_rgb(0xE4, 0xE4, 0xE9),
-                selected: Color32::from_rgb(0xE6, 0xEE, 0xFD),
-                accent: Color32::from_rgb(0x1B, 0x63, 0xE0),
-                accent_text: Color32::from_rgb(0x17, 0x55, 0xC4),
-                accent_soft: Color32::from_rgb(0xE3, 0xEC, 0xFD),
-                field: Color32::from_rgb(0xFF, 0xFF, 0xFF),
-                badge_new: Color32::from_rgb(0x1B, 0x63, 0xE0),
+                border: Color32::from_rgb(0x8A, 0x8A, 0x8A),
+                divider: Color32::from_rgb(0xCC, 0xCC, 0xCC),
+                text: Color32::from_rgb(0x0A, 0x0A, 0x0A),
+                text_muted: Color32::from_rgb(0x52, 0x52, 0x52),
+                text_faint: Color32::from_rgb(0x55, 0x55, 0x55),
+                icon: Color32::from_rgb(0x40, 0x40, 0x40),
+                hover: Color32::from_rgb(0xE5, 0xE5, 0xE5),
+                pressed: Color32::from_rgb(0xCC, 0xCC, 0xCC),
+                selected: Color32::from_rgb(0xBD, 0xD7, 0xF2),
+                primary: Color32::from_rgb(0x17, 0x17, 0x17),
+                primary_text: Color32::from_rgb(0xFA, 0xFA, 0xFA),
+                accent: Color32::from_rgb(0x17, 0x5F, 0xA8),
+                accent_text: Color32::from_rgb(0x12, 0x4F, 0x8C),
+                accent_soft: Color32::from_rgb(0xE0, 0xEC, 0xF8),
+                field: Color32::from_rgb(0xF5, 0xF5, 0xF5),
+                badge_new: Color32::from_rgb(0x40, 0x40, 0x40),
                 page_shadow: Color32::from_black_alpha(34),
-                radius: 6,
+                radius: RADIUS_CONTROL,
             },
             ThemeKind::Dark => Self {
                 kind,
-                titlebar: Color32::from_rgb(0x1B, 0x1B, 0x1E),
-                chrome: Color32::from_rgb(0x26, 0x26, 0x2A),
-                panel: Color32::from_rgb(0x26, 0x26, 0x2A),
-                pasteboard: Color32::from_rgb(0x19, 0x19, 0x1C),
-                card: Color32::from_rgb(0x2E, 0x2E, 0x33),
-                border: Color32::from_rgb(0x3C, 0x3C, 0x43),
-                divider: Color32::from_rgb(0x33, 0x33, 0x39),
-                text: Color32::from_rgb(0xEC, 0xEC, 0xEF),
-                text_muted: Color32::from_rgb(0xAE, 0xAE, 0xB6),
-                text_faint: Color32::from_rgb(0x97, 0x97, 0x9E),
-                icon: Color32::from_rgb(0xD4, 0xD4, 0xDA),
-                hover: Color32::from_rgb(0x34, 0x34, 0x3A),
-                pressed: Color32::from_rgb(0x3E, 0x3E, 0x45),
-                selected: Color32::from_rgb(0x23, 0x3A, 0x63),
-                accent: Color32::from_rgb(0x4B, 0x8B, 0xF5),
-                accent_text: Color32::from_rgb(0x8C, 0xB6, 0xFA),
-                accent_soft: Color32::from_rgb(0x24, 0x36, 0x57),
-                field: Color32::from_rgb(0x1E, 0x1E, 0x22),
-                badge_new: Color32::from_rgb(0x3D, 0x7D, 0xEE),
+                titlebar: Color32::from_rgb(0x10, 0x10, 0x10),
+                chrome: Color32::from_rgb(0x17, 0x17, 0x17),
+                panel: Color32::from_rgb(0x17, 0x17, 0x17),
+                pasteboard: Color32::from_rgb(0x0A, 0x0A, 0x0A),
+                card: Color32::from_rgb(0x20, 0x20, 0x20),
+                border: Color32::from_rgb(0x73, 0x73, 0x73),
+                divider: Color32::from_rgb(0x40, 0x40, 0x40),
+                text: Color32::from_rgb(0xFA, 0xFA, 0xFA),
+                text_muted: Color32::from_rgb(0xCC, 0xCC, 0xCC),
+                text_faint: Color32::from_rgb(0xBD, 0xBD, 0xBD),
+                icon: Color32::from_rgb(0xE5, 0xE5, 0xE5),
+                hover: Color32::from_rgb(0x38, 0x38, 0x38),
+                pressed: Color32::from_rgb(0x30, 0x30, 0x30),
+                selected: Color32::from_rgb(0x2B, 0x46, 0x63),
+                primary: Color32::from_rgb(0xE5, 0xE5, 0xE5),
+                primary_text: Color32::from_rgb(0x17, 0x17, 0x17),
+                accent: Color32::from_rgb(0x28, 0x6F, 0xBD),
+                accent_text: Color32::from_rgb(0xB0, 0xD6, 0xFF),
+                accent_soft: Color32::from_rgb(0x29, 0x3F, 0x58),
+                field: Color32::from_rgb(0x0F, 0x0F, 0x0F),
+                badge_new: Color32::from_rgb(0x52, 0x52, 0x52),
                 page_shadow: Color32::from_black_alpha(120),
-                radius: 6,
+                radius: RADIUS_CONTROL,
             },
         }
     }
@@ -152,6 +166,12 @@ impl Press {
 
     pub fn fill(self, rest: Color32, hover: Color32, pressed: Color32) -> Color32 {
         rest.lerp_to_gamma(hover, self.hover).lerp_to_gamma(pressed, self.down)
+    }
+
+    /// Neutral filled actions use the paired foreground, including throughout a hover/press.
+    pub fn primary_fill(self, t: &Tokens) -> Color32 {
+        let toward = if t.dark() { Color32::BLACK } else { Color32::WHITE };
+        self.fill(t.primary, t.primary.lerp_to_gamma(toward, 0.10), t.primary.lerp_to_gamma(toward, 0.20))
     }
 
     /// One pixel down at a full press.
@@ -220,10 +240,6 @@ pub const SYSTEM_FALLBACK: &str = "system-fallback";
 pub const SYSTEM_DEVANAGARI_FALLBACK: &str = "system-devanagari-fallback";
 /// The name of the installed Telugu face [`installed_font_definitions`] may add.
 pub const SYSTEM_TELUGU_FALLBACK: &str = "system-telugu-fallback";
-/// The name of the installed Sinhala face [`installed_font_definitions`] may add.
-pub const SYSTEM_SINHALA_FALLBACK: &str = "system-sinhala-fallback";
-/// The name of the installed Tamil face [`installed_font_definitions`] may add.
-pub const SYSTEM_TAMIL_FALLBACK: &str = "system-tamil-fallback";
 
 /// What [`install_fonts_for`] installs: [`font_definitions_for`], then, on desktop, one face
 /// already installed on this machine. It only draws characters no embedded face has.
@@ -236,9 +252,8 @@ pub const SYSTEM_TAMIL_FALLBACK: &str = "system-tamil-fallback";
 /// - Otherwise it is the last fallback of every family (an Arabic file name in a build without
 ///   craft-fonts).
 ///
-/// Installed Devanagari, Telugu, Sinhala and Tamil faces, when there are, end every family just
-/// before that one, so Hindi, Telugu (#1531), Sinhala and Tamil (#1688) text, such as a file
-/// name, draws in a build without such faces.
+/// An installed Devanagari face and an installed Telugu face, when there are, end every family
+/// just before that one, so Hindi and Telugu text draw in a build without such faces (#1531).
 ///
 /// `PDFCRAFT_SYSTEM_FONTS=0` leaves them out.
 pub fn installed_font_definitions(cjk: CjkPreference) -> FontDefinitions {
@@ -251,8 +266,6 @@ pub fn installed_font_definitions(cjk: CjkPreference) -> FontDefinitions {
         for (name, data) in [
             (SYSTEM_DEVANAGARI_FALLBACK, crate::system_fonts::devanagari_fallback()),
             (SYSTEM_TELUGU_FALLBACK, crate::system_fonts::telugu_fallback()),
-            (SYSTEM_SINHALA_FALLBACK, crate::system_fonts::sinhala_fallback()),
-            (SYSTEM_TAMIL_FALLBACK, crate::system_fonts::tamil_fallback()),
         ] {
             let Some(data) = data else { continue };
             fonts.font_data.insert(name.to_owned(), data);
@@ -315,40 +328,6 @@ fn primary_font_tweak(platform: FontPolicyPlatform, name: &str) -> FontTweak {
     tweak
 }
 
-/// A face's vertical metrics in em, as egui reads them: skrifa's ascent, descent (negative) and
-/// line gap at the default location. `None` when the face doesn't parse.
-fn vertical_metrics(bytes: &[u8], index: u32) -> Option<[f32; 3]> {
-    use skrifa::MetadataProvider as _;
-    let font = skrifa::FontRef::from_index(bytes, index).ok()?;
-    let m = font.metrics(skrifa::instance::Size::unscaled(), skrifa::instance::LocationRef::default());
-    let em = f32::from(m.units_per_em);
-    let metrics = [m.ascent / em, m.descent / em, m.leading / em];
-    (em > 0.0 && metrics.iter().all(|v| v.is_finite())).then_some(metrics)
-}
-
-/// How far below the primary face's baseline egui draws a fallback face's, in em of the font size
-/// (negative: above). egui centres the fallback's line box (ascent − descent + gap) on the
-/// primary's rather than lining up their baselines, so the baseline moves by half the difference
-/// of ascent + descent, less half the difference of the line gaps (epaint `text_layout`).
-fn baseline_drop(primary: [f32; 3], fallback: [f32; 3]) -> f32 {
-    let [pa, pd, pg] = primary;
-    let [a, d, g] = fallback;
-    ((a + d) - (pa + pd) + pg - g) / 2.0
-}
-
-/// `data` with its glyphs moved onto Inter's baseline (#1676). Without this, Chinese next to Latin
-/// in one label sits higher or lower than the Latin by a few percent of the font size, depending on
-/// the installed Chinese face (PingFang, Microsoft JhengHei, SimSun…). Inter is the first face of
-/// every proportional family; the monospace family's JetBrains Mono differs from it by 0.004 em,
-/// well under a pixel. A face that doesn't parse is left as it is (egui will skip it anyway).
-pub(crate) fn on_interface_baseline(mut data: FontData) -> FontData {
-    let primary = vertical_metrics(pdfcraft_fonts::INTER_REGULAR, 0);
-    if let (Some(primary), Some(fallback)) = (primary, vertical_metrics(&data.font, data.index)) {
-        data.tweak.y_offset_factor = -baseline_drop(primary, fallback);
-    }
-    data
-}
-
 fn font_definitions_for_platform(prefer_hans: bool, platform: FontPolicyPlatform) -> FontDefinitions {
     let mut fonts = FontDefinitions::default();
     let add = |fonts: &mut FontDefinitions, name: &str, bytes: &'static [u8]| {
@@ -356,7 +335,7 @@ fn font_definitions_for_platform(prefer_hans: bool, platform: FontPolicyPlatform
         let data = if ["Inter", "Inter-Medium", "Inter-SemiBold", "JetBrainsMono"].contains(&name) {
             data.tweak(primary_font_tweak(platform, name))
         } else {
-            on_interface_baseline(data)
+            data
         };
         fonts.font_data.insert(name.to_owned(), Arc::new(data));
     };
@@ -417,6 +396,54 @@ pub fn semibold(size: f32) -> FontId {
     FontId::new(size, FontFamily::Name("semibold".into()))
 }
 
+// Keep interface text on a small, intentional scale.  Call sites that need a special
+// measurement (for example a page thumbnail) can still use `regular`/`semibold`, but
+// ordinary chrome should use these named steps so the hierarchy remains consistent.
+pub const TEXT_CAPTION: f32 = 11.0;
+pub const TEXT_LABEL: f32 = 12.0;
+pub const TEXT_BODY: f32 = 13.0;
+pub const TEXT_SUBTITLE: f32 = 15.0;
+pub const TEXT_TITLE: f32 = 17.0;
+pub const TEXT_DISPLAY: f32 = 24.0;
+
+/// Shared chrome spacing. Keep these values in one place when adding a new surface.
+pub const SPACE_XS: f32 = 4.0;
+pub const SPACE_SM: f32 = 8.0;
+pub const SPACE_MD: f32 = 12.0;
+pub const SPACE_LG: f32 = 16.0;
+pub const SPACE_XL: f32 = 24.0;
+
+/// Standard fields and action buttons share a comfortable desktop hit target.
+pub const CONTROL_HEIGHT: f32 = 36.0;
+/// Secondary icon actions and menu rows use the compact size.
+pub const CONTROL_COMPACT: f32 = 32.0;
+/// Padding around multiline list labels; one-line rows use the standard height.
+pub const ROW_PAD_Y: f32 = 8.0;
+
+pub fn caption() -> FontId {
+    regular(TEXT_CAPTION)
+}
+
+pub fn label() -> FontId {
+    regular(TEXT_LABEL)
+}
+
+pub fn body() -> FontId {
+    regular(TEXT_BODY)
+}
+
+pub fn subtitle() -> FontId {
+    semibold(TEXT_SUBTITLE)
+}
+
+pub fn title() -> FontId {
+    semibold(TEXT_TITLE)
+}
+
+pub fn display() -> FontId {
+    semibold(TEXT_DISPLAY)
+}
+
 pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
     // Keep the native window inherited. A concrete egui theme pins macOS's
     // NSWindow appearance and prevents winit from delivering ThemeChanged.
@@ -434,8 +461,9 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
     v.selection.stroke = Stroke::new(1.0, t.accent);
     v.hyperlink_color = t.accent_text;
     v.override_text_color = Some(t.text);
-    v.window_corner_radius = CornerRadius::same(10);
-    v.menu_corner_radius = CornerRadius::same(8);
+    v.weak_text_color = Some(t.text_muted);
+    v.window_corner_radius = CornerRadius::same(RADIUS_SURFACE);
+    v.menu_corner_radius = CornerRadius::same(RADIUS_SURFACE);
     v.window_shadow = egui::Shadow { offset: [0, 8], blur: 28, spread: 0, color: Color32::from_black_alpha(if t.dark() { 110 } else { 38 }) };
     v.popup_shadow = egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(if t.dark() { 90 } else { 30 }) };
     for w in [&mut v.widgets.noninteractive, &mut v.widgets.inactive, &mut v.widgets.hovered, &mut v.widgets.active, &mut v.widgets.open] {
@@ -448,12 +476,15 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
     v.widgets.inactive.bg_stroke = Stroke::NONE;
     v.widgets.hovered.weak_bg_fill = t.hover;
     v.widgets.hovered.bg_fill = t.hover;
-    v.widgets.hovered.bg_stroke = Stroke::NONE;
+    v.widgets.hovered.bg_stroke = Stroke::new(1.0, t.border);
     v.widgets.active.weak_bg_fill = t.pressed;
     v.widgets.active.bg_fill = t.pressed;
+    v.widgets.active.bg_stroke = Stroke::new(1.5, t.accent_text);
     // Stock buttons (menus, dialogs) use the same pointing hand as the custom chrome.
     v.interact_cursor = Some(egui::CursorIcon::PointingHand);
-    v.widgets.open.weak_bg_fill = t.hover;
+    v.widgets.open.weak_bg_fill = t.selected;
+    v.widgets.open.bg_fill = t.selected;
+    v.widgets.open.bg_stroke = Stroke::new(1.0, t.accent_text);
     // Crisper text at 100–150 % scaling (#76): glyphs sit on whole pixels instead of being
     // rendered at quarter-pixel offsets, which egui notes blurs them. In the light theme, a mild
     // gamma darkens the antialiased edges of dark text (egui's default is linear, which reads thin
@@ -465,17 +496,18 @@ pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
     }
     ctx.set_visuals(v);
     ctx.global_style_mut(|s| {
-        s.spacing.item_spacing = egui::vec2(8.0, 6.0);
-        s.spacing.button_padding = egui::vec2(10.0, 5.0);
+        s.spacing.item_spacing = egui::vec2(SPACE_SM, SPACE_SM);
+        s.spacing.interact_size.y = CONTROL_COMPACT;
+        s.spacing.button_padding = egui::vec2(10.0, 6.0);
         s.spacing.menu_margin = egui::Margin::same(6);
         s.spacing.scroll.bar_width = 8.0;
         s.spacing.scroll.floating = true;
         s.spacing.scroll.floating_width = 3.0;
         s.spacing.scroll.foreground_color = true;
-        s.text_styles.insert(egui::TextStyle::Body, regular(13.0));
-        s.text_styles.insert(egui::TextStyle::Button, regular(13.0));
-        s.text_styles.insert(egui::TextStyle::Small, regular(11.0));
-        s.text_styles.insert(egui::TextStyle::Heading, semibold(17.0));
+        s.text_styles.insert(egui::TextStyle::Body, body());
+        s.text_styles.insert(egui::TextStyle::Button, body());
+        s.text_styles.insert(egui::TextStyle::Small, caption());
+        s.text_styles.insert(egui::TextStyle::Heading, title());
         s.interaction.tooltip_delay = 0.35;
     });
     let style = ctx.global_style();
@@ -588,39 +620,6 @@ mod tests {
             },
             font_definitions_for_platform(false, platform),
         )
-    }
-
-    /// The baseline of each glyph of `text` laid out by egui at `size` points, in points from the
-    /// top of the row: its position plus its face's `y_offset_factor`, as epaint draws it.
-    fn baselines(fallback: FontData, size: f32, text: &str) -> Vec<f32> {
-        let factor = fallback.tweak.y_offset_factor;
-        let mut defs = FontDefinitions::empty();
-        defs.font_data.insert("Inter".into(), Arc::new(FontData::from_static(pdfcraft_fonts::INTER_REGULAR)));
-        defs.font_data.insert("fallback".into(), Arc::new(fallback));
-        defs.families.insert(FontFamily::Proportional, vec!["Inter".into(), "fallback".into()]);
-        let mut fonts = Fonts::new(TextOptions::default(), defs);
-        let g = galley(&mut fonts, FontFamily::Proportional, size, 1.0, text);
-        let inter_has = |c: char| c.is_ascii();
-        g.rows[0].glyphs.iter().map(|gl| gl.pos.y + if inter_has(gl.chr) { 0.0 } else { size * factor }).collect()
-    }
-
-    #[test]
-    fn fallback_faces_share_the_interface_baseline() {
-        // Dancing Script's metrics differ from Inter's the way a Chinese face's do (by 0.044 em),
-        // and it has letters Inter doesn't (Ǆ), which egui then takes from it.
-        let dancing: &'static [u8] = include_bytes!("../../../assets/fonts/DancingScript.ttf");
-        let size = 100.0;
-        // As egui lays it out by itself, Ǆ sits ~4 pt off H's baseline: the bug (#1676).
-        let raw = baselines(FontData::from_static(dancing), size, "HǄ");
-        assert!((raw[1] - raw[0]).abs() > 3.0, "the test fonts must differ: {raw:?}");
-        let drop = baseline_drop(vertical_metrics(pdfcraft_fonts::INTER_REGULAR, 0).unwrap(), vertical_metrics(dancing, 0).unwrap());
-        assert!((raw[1] - raw[0] - size * drop).abs() <= 1.0, "baseline_drop predicts egui: {raw:?} vs {drop}");
-        // On the interface baseline, to the pixel.
-        let aligned = baselines(on_interface_baseline(FontData::from_static(dancing)), size, "HǄ");
-        assert!((aligned[1] - aligned[0]).abs() <= 1.0, "{aligned:?}");
-        // A face that doesn't parse is left alone rather than guessed at.
-        assert_eq!(on_interface_baseline(FontData::from_static(b"not a font")).tweak, FontTweak::default());
-        assert_eq!(vertical_metrics(b"", 0), None);
     }
 
     #[test]

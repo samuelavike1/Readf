@@ -1350,9 +1350,9 @@ fn heading(ui: &mut egui::Ui, t: &Tokens, key: SortKey, sort: Option<(SortKey, b
     response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &a11y));
     let being_dragged = egui::DragAndDrop::payload::<HeadingDrag>(ui.ctx()).is_some_and(|p| p.0 == key);
     if being_dragged || response.is_pointer_button_down_on() {
-        ui.painter().rect_filled(rect, CornerRadius::same(4), t.pressed);
+        ui.painter().rect_filled(rect, CornerRadius::same(theme::RADIUS_CONTROL), t.pressed);
     } else if response.hovered() {
-        ui.painter().rect_filled(rect, CornerRadius::same(4), t.hover);
+        ui.painter().rect_filled(rect, CornerRadius::same(theme::RADIUS_CONTROL), t.hover);
     }
     let colour = if arrow.is_some() { t.text } else { t.text_muted };
     let galley = ui.painter().layout_no_wrap(text.to_owned(), theme::medium(12.5), colour);
@@ -1413,7 +1413,7 @@ fn table_body(
         let painter = ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("combine-heading-drag")));
         let galley = painter.layout_no_wrap(dragged.0.label().to_owned(), theme::medium(12.5), t.text);
         let r = Rect::from_min_size(pos + vec2(10.0, 8.0), galley.size() + vec2(16.0, 8.0));
-        painter.rect(r, CornerRadius::same(4), t.card, Stroke::new(1.0, t.accent), egui::StrokeKind::Inside);
+        painter.rect(r, CornerRadius::same(theme::RADIUS_CONTROL), t.card, Stroke::new(1.0, t.accent), egui::StrokeKind::Inside);
         painter.galley(r.min + vec2(8.0, 4.0), galley, t.text);
     }
     let mut builder = TableBuilder::new(ui)
@@ -1478,7 +1478,7 @@ fn table_body(
                                 );
                                 // A visible field on plain and striped rows alike; red when the range is wrong.
                                 let border = if check.is_err() { Stroke::new(1.5, ERROR) } else { Stroke::new(1.0, t.border) };
-                                ui.painter().rect_stroke(edit.rect, CornerRadius::same(4), border, egui::StrokeKind::Inside);
+                                ui.painter().rect_stroke(edit.rect, CornerRadius::same(theme::RADIUS_CONTROL), border, egui::StrokeKind::Inside);
                                 if let Err(e) = &check {
                                     edit.clone().on_hover_text(e);
                                 } else {

@@ -13,6 +13,68 @@ use crate::{
     widgets,
 };
 
+/// Earlier fork exclusions also disable dispatch in the frontend.
+fn command_available(id: &str) -> bool {
+    !matches!(id, "help.app_page" | "help.github" | "help.website")
+        && !["create.", "page.", "measure.", "ai."].iter().any(|prefix| id.starts_with(prefix))
+}
+
+/// User-facing entries and shortcuts. Direct command/control dispatch stays available for
+/// headless workflows and upstream regression coverage; it does not add a GUI entry point.
+pub(crate) fn command_visible(id: &str) -> bool {
+    command_available(id)
+        && !matches!(
+            id,
+            "comment.stamp"
+                | "edit.link"
+                | "edit.links_from_urls"
+                | "edit.remove_links"
+                | "doc.compare"
+                | "edit.attach"
+                | "ocr.enhance"
+                | "ocr.correct"
+                | "a11y.reading_order"
+                | "standards.pdfx"
+                | "standards.pdfua"
+                | "actions.make_accessible"
+                | "actions.archive"
+                | "actions.distribution"
+        )
+        && !["form.", "protect.", "redact.", "export.", "js."].iter().any(|prefix| id.starts_with(prefix))
+        && (!id.starts_with("sign.") || id.starts_with("sign.fill."))
+}
+
+/// Keep fork-specific feature selection out of the upstream engine catalogue.
+pub(crate) fn tool_visible(id: &str) -> bool {
+    !matches!(id, "stamp" | "form" | "certificate" | "protect" | "redact" | "export" | "compare" | "javascript")
+}
+
+/// A retained tool should not advertise removed, unfinished items.
+pub(crate) fn tool_availability(group: &pdfcraft_engine::catalog::ToolGroup) -> pdfcraft_engine::catalog::Availability {
+    use pdfcraft_engine::catalog::Availability;
+    if group
+        .sections
+        .iter()
+        .flat_map(|section| section.items)
+        .filter(|item| command_visible(item.command))
+        .all(|item| item.availability == Availability::Ready)
+    {
+        Availability::Ready
+    } else {
+        group.availability
+    }
+}
+
+pub(crate) fn panel_visible(panel: crate::RightPanel) -> bool {
+    !matches!(panel, crate::RightPanel::Fields | crate::RightPanel::Signatures | crate::RightPanel::Compare)
+}
+
+/// Commands listed in menus and the palette. Find remains available to its shortcut and
+/// automation, but has no clickable entry point in the interface.
+pub(crate) fn command_listed(id: &str) -> bool {
+    command_visible(id) && id != "edit.find"
+}
+
 /// Keys the document view handles itself (`canvas::shortcuts`), for the View menu, tooltips and
 /// Help ▸ Keyboard shortcuts. Keep them in step with the bindings there.
 pub(crate) const ACTUAL_SIZE: Shortcut = Shortcut::cmd("1");
@@ -80,19 +142,15 @@ impl PdfCraftApp {
     /// Whether a registered command can run now. The engine judges the document (security,
     /// contents, undo history); view state it can't see is checked here.
     pub(crate) fn command_enabled(&self, spec: &CommandSpec) -> bool {
+        if !command_available(spec.id) {
+            return false;
+        }
         // Undo and Redo act on the Combine files list while its tab shows.
         if self.combine_showing() && matches!(spec.needs, commands::Needs::Undo | commands::Needs::Redo) {
             return self.combine_can_undo(spec.needs == commands::Needs::Undo);
         }
         commands::is_enabled(spec, &self.session, self.active_ids().map(|(_, id)| id))
-            && (spec.id != "edit.copy"
-                || self.active.and_then(|i| self.views.get(i)).is_some_and(|v| !v.organize && v.selected_text().is_some_and(|t| !t.is_empty())))
             && (spec.needs != commands::Needs::TwoPageView || self.active.and_then(|i| self.views.get(i)).is_some_and(crate::DocView::cover_applies))
-            && match spec.id {
-                "view.previous_view" => self.active.and_then(|i| self.views.get(i)).is_some_and(|v| !v.back.is_empty()),
-                "view.next_view" => self.active.and_then(|i| self.views.get(i)).is_some_and(|v| !v.forward.is_empty()),
-                _ => true,
-            }
     }
 
     /// Run a registered command by id. Returns `false` when the id is unknown or the command
@@ -181,7 +239,6 @@ impl PdfCraftApp {
             "file.close_all" => self.close_all(),
             "file.revert" => self.dialog = Some(Dialog::Revert),
             "file.properties" => self.dialog = Some(Dialog::Properties(PropsTab::Description)),
-            "file.word_count" => self.dialog = Some(Dialog::WordCount),
             "protect.properties" => self.dialog = Some(Dialog::Properties(PropsTab::Security)),
             // A restricted document's security changes once its permissions password is entered.
             "protect.password" | "protect.remove" if self.active_ids().and_then(|(_, id)| self.session.get(id)).is_some_and(|d| d.can_unlock()) => {
@@ -218,19 +275,16 @@ impl PdfCraftApp {
             "edit.redo" => self.redo(),
             "edit.find" => {
                 if let Some(i) = active {
+                    if self.right == Some(RightPanel::Search) {
+                        self.choose_right_panel(None);
+                    }
                     self.views[i].open_find();
                 }
             }
             "view.focus_page_input" => {
-                if let (Some(ctx), Some(view)) = (self.ctx.clone(), active.and_then(|i| self.views.get_mut(i))) {
-                    // The page box in the toolbar (chrome.rs); select its label so typing replaces it.
-                    let id = view.page_input_id();
-                    if !ctx.memory(|m| m.has_focus(id))
-                        && let Some(doc) = self.session.get(view.id)
-                    {
-                        // Navigation and this command can arrive before the next rail frame.
-                        view.page_input = view.current_page_label(doc.info.pages.get(view.current).map(|p| p.label.as_str()));
-                    }
+                if let (Some(ctx), Some(view)) = (self.ctx.clone(), active.and_then(|i| self.views.get(i))) {
+                    // The page box in the toolbar (chrome.rs); select its number so typing replaces it.
+                    let id = egui::Id::new("page-input");
                     ctx.memory_mut(|m| m.request_focus(id));
                     let mut state = egui::TextEdit::load_state(&ctx, id).unwrap_or_default();
                     let len = view.page_input.chars().count();
@@ -274,11 +328,6 @@ impl PdfCraftApp {
                 }
             }
             "view.read_mode" => self.switch_mode(if self.mode == Mode::Read { Mode::AllTools } else { Mode::Read }, false),
-            "view.previous_view" | "view.next_view" => {
-                if let Some(v) = active.and_then(|i| self.views.get_mut(i)) {
-                    return v.view_history(id == "view.next_view");
-                }
-            }
             "view.next_tab" => self.step_tab(true),
             "view.previous_tab" => self.step_tab(false),
             "view.theme" => {
@@ -329,12 +378,8 @@ impl PdfCraftApp {
                 self.apply_edit(Edit::ResetForm { names: None });
             }
             "page.organize" => {
-                if let Some(v) = active.and_then(|i| self.views.get_mut(i)) {
-                    if v.organize {
-                        v.organize = false;
-                    } else {
-                        v.open_organize();
-                    }
+                if let Some(i) = active {
+                    self.views[i].organize = !self.views[i].organize;
                 }
             }
             "page.rotate" => {
@@ -395,7 +440,6 @@ impl PdfCraftApp {
             "export.image" => self.dialog = Some(Dialog::Export(crate::export_ui::ExportKind::Image)),
             "export.text" => self.dialog = Some(Dialog::Export(crate::export_ui::ExportKind::Text)),
             "a11y.check" => self.start_accessibility_check(),
-            "a11y.find_untagged" => self.find_untagged_content(),
             "ocr.recognize" => self.dialog = Some(Dialog::RecognizeText),
             "tools.js_console" => self.dialog = Some(Dialog::JsConsole),
             "tools.document_js" => {
@@ -425,7 +469,6 @@ impl PdfCraftApp {
                 }
             }
             "a11y.alt_text" => self.start_alt_text(),
-            "a11y.autotag_fields" => self.autotag_form_fields(),
             "a11y.tags" => self.choose_right_panel(Some(RightPanel::Tags)),
             "a11y.reading_options" => self.dialog = Some(Dialog::Properties(crate::PropsTab::Advanced)),
             "export.all_images" => self.dialog = Some(Dialog::Export(crate::export_ui::ExportKind::AllImages)),
@@ -468,10 +511,7 @@ impl PdfCraftApp {
                 self.redact_search.found = None;
                 self.dialog = Some(Dialog::RedactSearch);
             }
-            "redact.properties" => {
-                self.redact_before = Some(self.redact_prefs.clone());
-                self.dialog = Some(Dialog::RedactProps);
-            }
+            "redact.properties" => self.dialog = Some(Dialog::RedactProps),
             "redact.apply" => {
                 let marks = active.and_then(|i| self.session.get(self.views[i].id)).map_or(0, |d| d.redaction_marks());
                 if marks == 0 {
@@ -530,12 +570,6 @@ impl PdfCraftApp {
             "edit.snapshot" => {
                 self.quick_tool = crate::QuickTool::Snapshot;
                 self.notify_tr("Drag a rectangle around the area to copy");
-            }
-            "edit.copy" => {
-                if let (Some(i), Some(ctx)) = (active, self.ctx.clone()) {
-                    return self.copy_selected_text(i, &ctx);
-                }
-                return false;
             }
             "page.copy" => self.copy_pages(false),
             "page.cut" => self.copy_pages(true),
@@ -665,7 +699,6 @@ impl PdfCraftApp {
             }
             "page.split" => self.dialog = Some(Dialog::Split),
             "help.shortcuts" => self.dialog = Some(Dialog::Shortcuts),
-            "help.about" => self.dialog = Some(Dialog::About),
             "help.check_updates" => self.check_for_updates(),
             _ => return false,
         }
@@ -697,14 +730,10 @@ impl PdfCraftApp {
         // while the field has yet to see the Escape and discard its draft.)
         let active = self.active_ids();
         let form_typing = active.and_then(|(i, _)| self.views.get(i)).is_some_and(|v| v.forms.focus.is_some());
-        let mut specs: Vec<&CommandSpec> = COMMANDS.iter().filter(|c| c.shortcut.is_some()).collect();
+        let mut specs: Vec<&CommandSpec> = COMMANDS.iter().filter(|c| command_visible(c.id) && c.shortcut.is_some()).collect();
         specs.sort_by_key(|c| std::cmp::Reverse(c.shortcut.map(|s| s.modifier_count()).unwrap_or(0)));
         for spec in specs {
             let Some(s) = spec.shortcut else { continue };
-            // Keep the canvas's silent no-op when there is no previous/next view to visit.
-            if matches!(spec.id, "view.previous_view" | "view.next_view") && !self.command_enabled(spec) {
-                continue;
-            }
             if typing && !spec.in_text {
                 continue;
             }
@@ -759,7 +788,7 @@ fn tab_after(current: Option<usize>, count: usize, forward: bool) -> Option<usiz
 
 /// Render a top-level menu's registered commands (with live labels, shortcuts and enablement).
 pub(crate) fn registry_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui, menu: &str) {
-    for spec in commands::menu(menu) {
+    for spec in commands::menu(menu).filter(|c| command_listed(c.id)) {
         let label = commands::current_label(spec, &app.session, app.active_ids().map(|(_, id)| id));
         let label = crate::i18n::menu_label(spec.id, &label);
         // Open Recent is a submenu of the live recent list, not one action: disabled while the
@@ -767,20 +796,20 @@ pub(crate) fn registry_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui, menu: &str
         // Clear Recent Files at the foot empties the list (#430).
         if spec.id == "file.open_recent" {
             if app.recent.is_empty() {
-                ui.add_enabled(false, egui::Button::new(label));
+                menu_row(ui, false, &label, "");
                 continue;
             }
             let mut open: Option<String> = None;
             let mut clear = false;
             ui.menu_button(label, |ui| {
                 for r in &app.recent {
-                    if ui.button(&r.name).on_hover_text(&r.path).clicked() {
+                    if menu_row(ui, true, &r.name, "").on_hover_text(&r.path).clicked() {
                         open = Some(r.path.clone());
                         ui.close();
                     }
                 }
                 ui.separator();
-                if ui.button(tl!("Clear Recent Files")).clicked() {
+                if menu_row(ui, true, tl!("Clear Recent Files"), "").clicked() {
                     clear = true;
                     ui.close();
                 }
@@ -795,15 +824,20 @@ pub(crate) fn registry_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui, menu: &str
             }
             continue;
         }
-        let shortcut = spec.shortcut.or((spec.id == "edit.copy").then_some(COPY)).map(|s| shortcut_label(ui.ctx(), s)).unwrap_or_default();
+        let shortcut = spec.shortcut.map(|s| shortcut_label(ui.ctx(), s)).unwrap_or_default();
         let enabled = app.command_enabled(spec);
-        let resp = ui.add_enabled(enabled, egui::Button::new(label).shortcut_text(shortcut));
+        let resp = menu_row(ui, enabled, &label, &shortcut);
         if resp.clicked() {
             app.execute(spec.id);
             ui.close();
         }
     }
-    let _ = widgets::menu_item;
+}
+
+/// A consistently sized command row shared with the rest of the application menus. Empty
+/// shortcuts are handled by the widget helper without adding whitespace to the accessible name.
+pub(crate) fn menu_row(ui: &mut egui::Ui, enabled: bool, label: &str, shortcut: &str) -> egui::Response {
+    widgets::menu_item_enabled(ui, enabled, label, shortcut)
 }
 
 #[cfg(test)]

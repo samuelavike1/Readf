@@ -20,6 +20,11 @@ pub struct Wizard {
     pub add: usize,
 }
 
+/// Actions containing removed tools stay stored for headless use, but have no GUI entry.
+fn step_visible(step: &Step) -> bool {
+    !matches!(step, Step::RemoveHiddenInformation | Step::Sanitize | Step::FlattenFields | Step::DetectFormFields)
+}
+
 /// Progress of a run: files done, total, and the summary once finished.
 #[derive(Default)]
 pub struct RunProgress {
@@ -234,26 +239,29 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
     if app.wizard.editing.is_some() {
         return edit_body(ui, app, t);
     }
-    ui.label(egui::RichText::new(tl!("Action Wizard")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_title(ui, tl!("Action Wizard"));
     ui.add_space(8.0);
-    let actions = app.all_actions();
+    let actions: Vec<_> = app.all_actions().into_iter().filter(|action| action.steps.iter().all(step_visible)).collect();
     if app.wizard.selected.as_ref().is_none_or(|s| !actions.iter().any(|a| &a.name == s)) {
         app.wizard.selected = actions.first().map(|a| a.name.clone());
     }
     ui.horizontal_top(|ui| {
         ui.vertical(|ui| {
             ui.set_width(220.0);
-            egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(6)).show(ui, |ui| {
-                ui.set_width(208.0);
-                ui.set_min_height(260.0);
-                for a in &actions {
-                    let on = app.wizard.selected.as_deref() == Some(a.name.as_str());
-                    let name = if a.builtin { tl!(&a.name) } else { &a.name };
-                    if ui.selectable_label(on, name).clicked() {
-                        app.wizard.selected = Some(a.name.clone());
+            egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::same(6)).show(
+                ui,
+                |ui| {
+                    ui.set_width(208.0);
+                    ui.set_min_height(260.0);
+                    for a in &actions {
+                        let on = app.wizard.selected.as_deref() == Some(a.name.as_str());
+                        let name = if a.builtin { tl!(&a.name) } else { &a.name };
+                        if ui.selectable_label(on, name).clicked() {
+                            app.wizard.selected = Some(a.name.clone());
+                        }
                     }
-                }
-            });
+                },
+            );
         });
         ui.vertical(|ui| {
             let Some(a) = actions.iter().find(|a| app.wizard.selected.as_deref() == Some(a.name.as_str())) else { return };
@@ -303,7 +311,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
 
 fn edit_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     let Some((original, a)) = app.wizard.editing.as_mut() else { return false };
-    ui.label(egui::RichText::new(if original.is_some() { tl!("Edit Action") } else { tl!("New Action") }).font(theme::semibold(18.0)));
+    crate::widgets::dialog_title(ui, if original.is_some() { tl!("Edit Action") } else { tl!("New Action") });
     ui.add_space(8.0);
     egui::Grid::new("action-edit").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
         ui.label(tl!("Action name:"));
@@ -316,40 +324,47 @@ fn edit_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     ui.add_space(6.0);
     ui.label(egui::RichText::new(tl!("Steps")).font(theme::semibold(13.0)));
     let mut remove = None;
-    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        if a.steps.is_empty() {
-            ui.label(egui::RichText::new(tl!("Add the steps this action runs, in order.")).color(t.text_muted));
-        }
-        for (i, s) in a.steps.iter_mut().enumerate() {
-            ui.push_id(i, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(format!("{}. {}", i + 1, tl!(s.label())));
-                    if let Some(arg) = s.arg_mut() {
-                        ui.add(crate::widgets::line(arg).desired_width(220.0));
-                    }
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ui.button(tl!("Remove")).clicked() {
-                            remove = Some(i);
+    egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(theme::RADIUS_CONTROL)).inner_margin(egui::Margin::same(8)).show(
+        ui,
+        |ui| {
+            ui.set_width(ui.available_width());
+            if a.steps.is_empty() {
+                ui.label(egui::RichText::new(tl!("Add the steps this action runs, in order.")).color(t.text_muted));
+            }
+            for (i, s) in a.steps.iter_mut().enumerate() {
+                ui.push_id(i, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{}. {}", i + 1, tl!(s.label())));
+                        if let Some(arg) = s.arg_mut() {
+                            ui.add(crate::widgets::line(arg).desired_width(220.0));
                         }
+                        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                            if ui.button(tl!("Remove")).clicked() {
+                                remove = Some(i);
+                            }
+                        });
                     });
                 });
-            });
-        }
-    });
+            }
+        },
+    );
     if let Some(i) = remove {
         a.steps.remove(i);
     }
-    let all = Step::all();
+    let all: Vec<_> = Step::all().into_iter().filter(step_visible).collect();
     let add = &mut app.wizard.add;
     ui.horizontal(|ui| {
-        egui::ComboBox::from_id_salt("action-add-step").selected_text(tl!(all[(*add).min(all.len() - 1)].label())).width(240.0).show_ui(ui, |ui| {
+        *add = (*add).min(all.len().saturating_sub(1));
+        let selected = all.get(*add).map_or("", Step::label);
+        egui::ComboBox::from_id_salt("action-add-step").selected_text(tl!(selected)).width(240.0).show_ui(ui, |ui| {
             for (i, s) in all.iter().enumerate() {
                 ui.selectable_value(add, i, tl!(s.label()));
             }
         });
-        if ui.button(tl!("Add Step")).clicked() {
-            a.steps.push(all[(*add).min(all.len() - 1)].clone());
+        if ui.button(tl!("Add Step")).clicked()
+            && let Some(step) = all.get(*add)
+        {
+            a.steps.push(step.clone());
         }
     });
     ui.add_space(10.0);

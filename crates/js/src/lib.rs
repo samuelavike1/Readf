@@ -783,10 +783,8 @@ fn printd(_: &JsValue, args: &[JsValue], ctx: &mut Context) -> JsResult<JsValue>
                 out.push_str(if run >= 2 { ampm } else { &ampm[..1] });
             }
             b'\\' if i + 1 < b.len() => {
-                // The escaped character may be multi-byte; copy it whole.
-                let ch = fmt[i + 1..].chars().next().unwrap_or(' ');
-                out.push(ch);
-                i += 1 + ch.len_utf8();
+                out.push(b[i + 1] as char);
+                i += 2;
                 continue;
             }
             _ => {

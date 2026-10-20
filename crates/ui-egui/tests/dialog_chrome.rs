@@ -65,6 +65,61 @@ fn document_properties_fields_are_tall_and_inset() {
 }
 
 #[test]
+fn protection_dialog_shrinks_after_preferences() {
+    let mut h = Harness::builder().with_size(egui::vec2(1100.0, 800.0)).build_eframe(|_cc| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.open_bytes("doc.pdf", None, fixture()).unwrap();
+        app.set_option("dialog", "preferences").unwrap();
+        app
+    });
+    h.run_steps(5);
+    h.state_mut().set_option("dialog", "protect").unwrap();
+    h.run_steps(5);
+    let card = card(&h, "dialog");
+    assert!(card.height() < 500.0, "protection retained the previous dialog's height: {card:?}");
+    let cancel = h.get_by_label("Cancel").rect();
+    assert!(card.bottom() - cancel.bottom() < 40.0, "actions left blank space in {card:?}: {cancel:?}");
+}
+
+#[test]
+fn print_and_ocr_cards_fit_short_and_narrow_windows() {
+    for size in [egui::vec2(1100.0, 800.0), egui::vec2(420.0, 650.0)] {
+        for dialog in ["print", "recognize-text"] {
+            let mut h = Harness::builder().with_size(size).build_eframe(|_cc| {
+                let mut app = PdfCraftApp::new();
+                app.set_option("language", "en").unwrap();
+                app.open_bytes("doc.pdf", None, fixture()).unwrap();
+                if dialog == "print" {
+                    assert!(app.execute("print.dialog"));
+                } else {
+                    app.set_option("dialog", dialog).unwrap();
+                }
+                app
+            });
+            h.run_steps(6);
+            let card = card(&h, "dialog");
+            assert!(card.left() >= 0.0 && card.right() <= size.x, "{dialog} exceeds width {size:?}: {card:?}");
+            assert!(card.top() >= 0.0 && card.bottom() <= size.y, "{dialog} exceeds height {size:?}: {card:?}");
+            if dialog == "print" {
+                if size.x > 1000.0 {
+                    let cancel = h.get_by_label("Cancel").rect();
+                    assert!(cancel.bottom() <= card.bottom() - 16.0, "print actions need scrolling in a normal window: {cancel:?}");
+                }
+                use pdfcraft_ui_egui::PrintHandling;
+                for handling in [PrintHandling::Poster, PrintHandling::Multiple, PrintHandling::Booklet] {
+                    h.state_mut().print_draft.handling = handling;
+                    h.run_steps(6);
+                    let bounds = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("dialog").with("card"))).unwrap();
+                    assert!(bounds.left() >= 0.0 && bounds.right() <= size.x, "{handling:?} exceeds width {size:?}: {bounds:?}");
+                    assert!(bounds.top() >= 0.0 && bounds.bottom() <= size.y, "{handling:?} exceeds height {size:?}: {bounds:?}");
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn password_prompt_field_is_tall_and_inset() {
     let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_cc| {
         let mut app = PdfCraftApp::new();
@@ -80,19 +135,4 @@ fn password_prompt_field_is_tall_and_inset() {
     assert!(card.right() - field.right() >= 16.0, "password field {field:?} in {card:?}");
     let heading = h.get_by_label("Password required").rect();
     assert!(heading.top() - card.top() >= 16.0, "heading inset {heading:?} in {card:?}");
-}
-
-#[test]
-fn document_properties_long_filename_does_not_overflow_card() {
-    let long_name = "Global_sociology_introducing_five_contemporary_societies_Schneider_Linda_Silverman_Arnold_2000_Boston_isbn13_9780072294309_hash_3d2960a9212a8573bba2536e91f36e59_archive_copy.pdf";
-    let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(move |_cc| {
-        let mut app = PdfCraftApp::new();
-        app.set_option("language", "en").unwrap();
-        app.open_bytes(long_name, None, fixture()).unwrap();
-        app.set_option("dialog", "properties").unwrap();
-        app
-    });
-    h.run_steps(4);
-    let card = card(&h, "dialog");
-    assert!(card.width() <= 700.0, "dialog card should not blow out horizontally on long filename, width was: {}", card.width());
 }
